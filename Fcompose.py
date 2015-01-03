@@ -23,34 +23,45 @@ class Composer():
 		self.lightRaws=self.searchRawFiles(self.lightspath)
 		self.lightFits=self.rawtran(self.lightRaws)
 		self.NumLights=len(self.lightFits)
-		self.darkRaws=self.searchRawFiles(self.darkspath)
-		self.darkFits=self.rawtran(self.darkRaws)
-		self.NumDarks=len(self.darkFits)
-		self.flatRaws=self.searchRawFiles(self.flatspath)
-		self.flatFits=self.rawtran(self.flatRaws)
-		self.NumFlats=len(self.flatFits)
+		if os.path.exists(self.darkspath):
+			self.darkRaws=self.searchRawFiles(self.darkspath)
+			self.darkFits=self.rawtran(self.darkRaws)
+			self.NumDarks=len(self.darkFits)
+			print "=========== DARK FRAMES =============="
+			print "Path:", self.darkspath
+			print "Light frames found:",self.NumDarks
+			print self.darkRaws
+			print self.darkFits
+			dark=self.MasterDark()
+			dark.save(self.outdir+'/masterdark.fit')
+		else:
+			print "NO DARKS"
+		
+		if os.path.exists(self.flatspath):
+			self.flatRaws=self.searchRawFiles(self.flatspath)
+			self.flatFits=self.rawtran(self.flatRaws)
+			self.NumFlats=len(self.flatFits)
+			print "=========== FLAT FRAMES =============="
+			print "Path:", self.flatspath
+			print "Light frames found:",self.NumFlats
+			print self.flatRaws
+			print self.flatFits
+			flat=self.MasterFlat()
+			flat.save(self.outdir+'/masterflat.fit')
+		else:
+			print "NO FLATS"
+
+
 		print "Processing directory:",path
 		print "=========== LIGHT FRAMES =============="
 		print "Path:", self.lightspath
 		print "Light frames found:",self.NumLights
 		print self.lightRaws
 		print self.lightFits
-		print "=========== DARK FRAMES =============="
-		print "Path:", self.darkspath
-		print "Light frames found:",self.NumDarks
-		print self.darkRaws
-		print self.darkFits
-		print "=========== FLAT FRAMES =============="
-		print "Path:", self.flatspath
-		print "Light frames found:",self.NumFlats
-		print self.flatRaws
-		print self.flatFits
 		print "=========== OUTPUT =============="
 		print "Path:", self.outdir
-		dark=self.MasterDark()
-		dark.save(self.outdir+'/masterdark.fit')
-		flat=self.MasterFlat()
-		flat.save(self.outdir+'/masterflat.fit')
+
+
 
 
 	def searchRawFiles(self,path):
@@ -102,13 +113,15 @@ class Composer():
 
 	def sex(self,fit):
 		name=fit.replace('.fit','.cat')
-		#outfile=self.outdir+"/"+os.path.basename(fit).replace('fit','cat')
-		sexStr="sex "+fit+" -c "+self.scriptpath+"/registra.sex -CATALOG_NAME "+name+ \
-		" -PARAMETERS_NAME "+self.scriptpath+"/registra.param"+ \
-		" -FILTER_NAME "+self.scriptpath+"/registra.conv"
-		print "EXECUTING:",sexStr
-		res=commands.getoutput(sexStr)
-		print res
+		if not os.path.exists(name):
+			#outfile=self.outdir+"/"+os.path.basename(fit).replace('fit','cat')
+			sexStr="sex "+fit+" -c "+self.scriptpath+"/registra.sex -CATALOG_NAME "+name+ \
+			" -PARAMETERS_NAME "+self.scriptpath+"/registra.param"+ \
+			" -FILTER_NAME "+self.scriptpath+"/registra.conv"
+			print "EXECUTING:",sexStr
+			res=commands.getoutput(sexStr)
+			print res
+		
 		hdulist=pyfits.open(name)
 		data=hdulist[1].data
 		return data
@@ -136,9 +149,9 @@ class Composer():
 
 class triangleComposer(Composer):
 	def getTriangles(self):
-		numstars=50
+		numstars=10
 		maxtriangles=numstars*(numstars-1)*(numstars-2)/6
-		dt=np.dtype([('frame',int),('v0',int),('v1',int),('v2',int),('sA',float),('sB',float)])
+		dt=np.dtype([('frame',int),('v0',int),('v1',int),('v2',int),('sA',float),('sB',float),('points',np.float32,(3,2))])
 		result=np.zeros((maxtriangles*len(self.lightFits),),dtype=dt)
 		triInx=0
 		for k,light in enumerate(self.lightFits):
@@ -163,9 +176,18 @@ class triangleComposer(Composer):
 						id2=sss['NUMBER']
 						if id2<id1:
 							continue
+						result[triInx]['frame']=k
+						result[triInx]['v0']=id0
+						result[triInx]['v1']=id1
+						result[triInx]['v2']=id2
+						result[triInx]['points'][0][0]=s['X_IMAGE']
+						result[triInx]['points'][0][1]=s['Y_IMAGE']
+						result[triInx]['points'][1][0]=ss['X_IMAGE']
+						result[triInx]['points'][1][1]=ss['Y_IMAGE']
+						result[triInx]['points'][2][0]=sss['X_IMAGE']
+						result[triInx]['points'][2][1]=sss['Y_IMAGE']
 
-						t=np.array([[s['X_IMAGE'],s['Y_IMAGE']],[ss['X_IMAGE'],ss['Y_IMAGE']],[sss['X_IMAGE'],sss['Y_IMAGE']]])
-						#print t
+						t=result[triInx]['points']
 						dis=np.zeros(3)
 						dis[0]=self.distance(t[0],t[1])
 						dis[1]=self.distance(t[0],t[2])
@@ -175,32 +197,60 @@ class triangleComposer(Composer):
 						sA=dis[2]/dis[0]
 						sB=dis[1]/dis[0]
 
-						result[triInx]['frame']=k
-						result[triInx]['v0']=id0
-						result[triInx]['v1']=id1
-						result[triInx]['v2']=id2
 						result[triInx]['sA']=sA
 						result[triInx]['sB']=sB
+
 						triInx=triInx+1
+		print "Triangles real/theory",triInx,maxtriangles*len(self.lightFits)
+		self.result=result
 
-
-		print len(triplets),maxtriangles	
+	def match(self):
+		triErr=0.0001
+		result=self.result
+		dt=np.dtype([('frame',int),('err',float),('refpoints',np.float32,(3,2)),('points',np.float32,(3,2))])
+		matchedTriangles=np.zeros((1,),dtype=dt)
+		matchedBuffer=np.zeros((1,),dtype=dt)
+		matchCount=0
 		for k,light in enumerate(self.lightFits):
 			if k==0:
-				frame0=result[(result['frame']==0)]
+				frame0=np.sort(result[(result['frame']==0)],order='sA')
 				continue
-			frame=result[(result['frame']==k)]
-			for triangle0 in frame0:
+			frame=np.sort(result[(result['frame']==k)],order='sA')
+			for t0Inx,triangle0 in enumerate(frame0):
 				t0=(triangle0['sA'],triangle0['sB'])
-				for triangle in frame:
+				p=triangle0['points']
+				for tInx,triangle in enumerate(frame):
 					tt=(triangle['sA'],triangle['sB'])
+					pp=triangle['points']	
+					if tt[0]-t0[0]>=triErr:
+						break			
 					dd=self.distance(t0,tt)
-					if dd<0.0001:
-						print "Match",dd,k,t0,tt
+					if dd <= triErr :
+						if matchCount==0:
+							matchedTriangles['frame']=k
+							matchedTriangles['err']=dd
+							matchedTriangles['refpoints']=p
+							matchedTriangles['points']=pp
+						else:
+							matchedBuffer['frame']=k
+							matchedBuffer['err']=dd
+							matchedBuffer['refpoints']=p
+							matchedBuffer['points']=pp
+							matchedTriangles=np.vstack((matchedTriangles,matchedBuffer))
+						#print "Match",k,dd,t0,tt
+						#print p
+						#print pp
+						print np.average((pp-p),axis=0)
+						matchCount=matchCount+1
+		print matchCount
+		#print matchedTriangles
+		return matchedTriangles
 
+	def homografy(self):
+		pass
 
 	def distance(self,p0,p1):
-		return np.sqrt((p1[0]-p0[0])*(p1[0]-p0[0])+(p1[1]-p0[1])*(p1[1]-p0[1]))
+		return np.sqrt((p1[0]-p0[0])**2+(p1[1]-p0[1])**2)
 
 class resolvComposer(Composer):
 
@@ -246,6 +296,7 @@ class resolvComposer(Composer):
 if __name__ == '__main__':
 	co=triangleComposer('.')
 	co.getTriangles()
+	co.match()
 	'''
 	l=co.lightSum()
 	l.save('kk.fit')
