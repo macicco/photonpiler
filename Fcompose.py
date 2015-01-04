@@ -6,6 +6,13 @@ import os,commands
 import pyfits
 import time
 import numpy as np
+from scipy.stats import sigmaclip
+from  scipy.ndimage.interpolation import shift
+from PIL import Image
+
+
+#translate(a, sdx, sdy, output=None, mode='nearest', cval=0.0)
+
 
 
 class Composer():
@@ -20,38 +27,45 @@ class Composer():
 		self.outdir=path+"/OUTPUT"
 		if not os.path.exists(self.outdir):
 			os.mkdir(self.outdir) 
-		self.lightRaws=self.searchRawFiles(self.lightspath)
-		self.lightFits=self.rawtran(self.lightRaws)
-		self.NumLights=len(self.lightFits)
+
 		if os.path.exists(self.darkspath):
-			self.darkRaws=self.searchRawFiles(self.darkspath)
-			self.darkFits=self.rawtran(self.darkRaws)
-			self.NumDarks=len(self.darkFits)
-			print "=========== DARK FRAMES =============="
-			print "Path:", self.darkspath
-			print "Light frames found:",self.NumDarks
-			print self.darkRaws
-			print self.darkFits
-			dark=self.MasterDark()
-			dark.save(self.outdir+'/masterdark.fit')
+			if not os.path.exists(self.outdir+'/masterdark.fit'):
+				self.darkRaws=self.searchRawFiles(self.darkspath)
+				self.darkFits=self.rawtran(self.darkRaws,dark=False)
+				self.NumDarks=len(self.darkFits)
+				dark=self.MasterDark()
+				dark.save(self.outdir+'/masterdark.fit')
+				print "=========== DARK FRAMES =============="
+				print "Path:", self.darkspath
+				print "Light frames found:",self.NumDarks
+				print self.darkRaws
+				print self.darkFits
+			ifile=self.outdir+'/masterdark.fit'
+			self.dark=fitsMaths.fitMaths(ifile)
 		else:
 			print "NO DARKS"
 		
 		if os.path.exists(self.flatspath):
-			self.flatRaws=self.searchRawFiles(self.flatspath)
-			self.flatFits=self.rawtran(self.flatRaws)
-			self.NumFlats=len(self.flatFits)
-			print "=========== FLAT FRAMES =============="
-			print "Path:", self.flatspath
-			print "Light frames found:",self.NumFlats
-			print self.flatRaws
-			print self.flatFits
-			flat=self.MasterFlat()
-			flat.save(self.outdir+'/masterflat.fit')
+			if not os.path.exists(self.outdir+'/masterflat.fit'):
+				self.flatRaws=self.searchRawFiles(self.flatspath)
+				self.flatFits=self.rawtran(self.flatRaws)
+				self.NumFlats=len(self.flatFits)
+				flat=self.MasterFlat()
+				flat.save(self.outdir+'/masterflat.fit')
+				print "=========== FLAT FRAMES =============="
+				print "Path:", self.flatspath
+				print "Light frames found:",self.NumFlats
+				print self.flatRaws
+				print self.flatFits
+			ifile=self.outdir+'/masterflat.fit'
+			self.flat=fitsMaths.fitMaths(ifile)
 		else:
 			print "NO FLATS"
 
 
+		self.lightRaws=self.searchRawFiles(self.lightspath)
+		self.lightFits=self.rawtran(self.lightRaws)
+		self.NumLights=len(self.lightFits)
 		print "Processing directory:",path
 		print "=========== LIGHT FRAMES =============="
 		print "Path:", self.lightspath
@@ -64,6 +78,7 @@ class Composer():
 
 
 
+
 	def searchRawFiles(self,path):
 		l=[]
 		for file in os.listdir(path):
@@ -71,7 +86,8 @@ class Composer():
 			l.append(path+"/"+file)
 		return l
 
-	def rawtran(self,raws):
+	def rawtran(self,raws,dark=False):
+	#dark=False!!!
 		l=[]
 		for raw in raws:
 			outfile=self.outdir+"/"+os.path.basename(raw).replace('CR2','fit')
@@ -81,10 +97,18 @@ class Composer():
 				print strCmd
 				res=commands.getoutput(strCmd)
 				print res
+				if dark:
+					light=fitsMaths.fitMaths(outfile)
+					light=light.dark(self.outdir+'/masterdark.fit')
+					light.save(outfile)
 			else:
 				print "Already exist:",outfile
 			l.append(outfile)
 		return l
+
+	def toTiff(self,fit):
+		light=fitsMaths.fitMaths(fit)
+		
 
 	def catalog(self):
 		for light in self.lightFits:
@@ -132,7 +156,7 @@ class Composer():
 	def MasterDark(self):
 		return (1./self.NumDarks)*self.Sum(self.darkFits)
 
-
+		
 	def lightSum(self):
 		return self.Sum(self.lightFits)
 
@@ -149,7 +173,7 @@ class Composer():
 
 class triangleComposer(Composer):
 	def getTriangles(self):
-		numstars=10
+		numstars=20
 		maxtriangles=numstars*(numstars-1)*(numstars-2)/6
 		dt=np.dtype([('frame',int),('v0',int),('v1',int),('v2',int),('sA',float),('sB',float),('points',np.float32,(3,2))])
 		result=np.zeros((maxtriangles*len(self.lightFits),),dtype=dt)
@@ -240,14 +264,89 @@ class triangleComposer(Composer):
 						#print "Match",k,dd,t0,tt
 						#print p
 						#print pp
-						print np.average((pp-p),axis=0)
+						#print np.average((pp-p),axis=0)
 						matchCount=matchCount+1
 		print matchCount
-		#print matchedTriangles
+		self.matchedTriangles= matchedTriangles
 		return matchedTriangles
 
 	def homografy(self):
-		pass
+		matchedTriangles=self.matchedTriangles
+		homo={}
+		for k,light in enumerate(self.lightFits):
+			if k==0:
+				continue
+			matchedTri=np.sort(matchedTriangles[(matchedTriangles['frame']==k)])
+			print "FRAME:",k," MATCHED TRIANGLES:",len(matchedTri)
+			result=np.array([[0,0],[0,0],[0,0]])
+			for i,match in enumerate(matchedTri):
+				err=match['err']
+				p0=match['refpoints']
+				p1=match['points']
+				diff=p1-p0
+				if i==0:
+					result=np.array(diff)
+				else:
+					result=np.vstack((result,diff))
+				trian=np.average(diff,axis=0)
+			print "Sigmaclip and averaging.."
+			xx,xlow,xhigh=sigmaclip(result[:,0],low=1.5,high=1.5)
+			yy,ylow,yhigh=sigmaclip(result[:,1],low=1.5,high=1.5)
+			x=xx.mean()
+			y=yy.mean()
+			print xx,yy
+			if np.isnan(x):
+				x=0
+			if np.isnan(y):
+				y=0
+			homo[k]={'x':x,'y':y}
+		self.homo=homo
+		print homo
+
+	def stack(self):
+		homo=self.homo
+		xdeltaMax=0
+		xdeltaMin=0
+		ydeltaMax=0
+		ydeltaMin=0
+		for k,light in enumerate(self.lightFits):
+			if k==0:
+				Master=fitsMaths.fitMaths(light)
+				(xsize,ysize)=Master.hdulist[0].data.shape
+				print "Fits size:",xsize,ysize
+				continue	
+			print "Frame",k
+			
+			frame=fitsMaths.fitMaths(light)
+			x_=homo[k]['x']	
+			y_=homo[k]['y']
+			print "Shifting:",x_,y_
+			frame.hdulist[0].data=shift(frame.hdulist[0].data,(-y_,-x_))
+			print frame.hdulist[0].data.shape
+			frame.save(light.replace('IMG','_IMG'))
+			Master=Master+frame
+			'''
+			if x_>0:
+				x0=x_
+				x1=xsize-x_
+			else:
+				x0=0
+				x1=xsize-x_
+			if xdeltaMax<x_:
+				xdeltaMax=x_
+			if ydeltaMax<y_:
+				ydeltaMax=y_
+			if xdeltaMin>x_:
+				xdeltaMin=x_
+			if ydeltaMin>y_:
+				ydeltaMin=y_
+			print x_,y_
+
+		x0,y0,x1,y1=xdeltaMax,ydeltaMax,xsize-xdeltaMin,ysize-ydeltaMin
+		print x0,y0,x1,y1
+		'''
+		outfile=self.outdir+"/output.fit"
+		Master.save(outfile)
 
 	def distance(self,p0,p1):
 		return np.sqrt((p1[0]-p0[0])**2+(p1[1]-p0[1])**2)
@@ -297,6 +396,8 @@ if __name__ == '__main__':
 	co=triangleComposer('.')
 	co.getTriangles()
 	co.match()
+	co.homografy()
+	co.stack()
 	'''
 	l=co.lightSum()
 	l.save('kk.fit')
