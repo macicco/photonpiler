@@ -74,6 +74,9 @@ class Composer():
 		print self.lightFits
 		print "=========== OUTPUT =============="
 		print "Path:", self.outdir
+		self.rankdt=np.dtype([('frame',int),('framename',object),('rank',int),\
+				('register',bool),('fwhm',float),('ellipticity',float)])
+		self.rank=np.zeros((1,),dtype=self.rankdt)
 
 
 
@@ -107,6 +110,7 @@ class Composer():
 		return l
 
 	def toTiff(self,fit):
+		#do not work
 		light=fitsMaths.fitMaths(fit)
 		
 
@@ -135,7 +139,8 @@ class Composer():
 		pass
 
 
-	def sex(self,fit):
+	def sex(self,n):
+		fit=self.lightFits[n]	
 		name=fit.replace('.fit','.cat')
 		if not os.path.exists(name):
 			#outfile=self.outdir+"/"+os.path.basename(fit).replace('fit','cat')
@@ -149,6 +154,53 @@ class Composer():
 		hdulist=pyfits.open(name)
 		data=hdulist[1].data
 		return data
+
+	def getQuality(self,data):
+		fwhm=data['FWHM_IMAGE']
+		ellipticity=data['ELLIPTICITY']
+		print fwhm.mean(),ellipticity.mean()
+		fwhm_filter,xlow,xhigh=sigmaclip(fwhm,low=1.5,high=1.5)
+		ellipticity_filter,xlow,xhigh=sigmaclip(ellipticity,low=1.5,high=1.5)
+		meanFWHM,meanELLIPTICITY=fwhm_filter.mean(),ellipticity_filter.mean()
+		return meanFWHM,meanELLIPTICITY
+
+
+	def filterSources(self,n,maxFWHM):
+		data=self.sex(n)
+		flt=((data['FWHM_IMAGE']<=maxFWHM))
+		filter_data=data[flt]
+		return filter_data
+
+	def rankFrames(self):
+		for k,light in enumerate(self.lightFits):
+			print "Extracting sources and rank:",light
+			data=self.sex(k)
+			fit=self.lightFits[k]
+			meanFWHM,meanELLIPTICITY=self.getQuality(data)
+			print meanFWHM,meanELLIPTICITY
+			rank=np.zeros((1,),dtype=self.rankdt)
+			if len(self.rank)==1 and self.rank['fwhm']==0:
+				self.rank['frame']=k
+				self.rank['framename']=fit
+				self.rank['fwhm']=meanFWHM
+				self.rank['ellipticity']=meanELLIPTICITY
+			else:
+				rank['frame']=k
+				rank['framename']=fit
+				rank['fwhm']=meanFWHM
+				rank['ellipticity']=meanELLIPTICITY
+				self.rank=np.vstack((self.rank,rank))
+	
+		print "Sorting"
+		self.rank=np.sort(self.rank,order=['fwhm','ellipticity'],axis=0)
+		print self.rank
+		#Select the best frame to be used as reference frame and discard bads
+		selected=self.rank['framename'][:-4]
+		self.lightFits=[]
+		for s in selected:
+			self.lightFits.append(s[0])
+		print self.lightFits
+
 
 	def MasterFlat(self):
 		return (1./self.NumFlats)*self.Sum(self.flatFits)
@@ -172,6 +224,9 @@ class Composer():
 		return Master
 
 class triangleComposer(Composer):
+
+
+
 	def getTriangles(self):
 		numstars=20
 		maxtriangles=numstars*(numstars-1)*(numstars-2)/6
@@ -180,7 +235,7 @@ class triangleComposer(Composer):
 		triInx=0
 		for k,light in enumerate(self.lightFits):
 			print "Searching triangles on:",light
-			a=np.asarray(self.sex(light))
+			a=np.asarray(self.sex(k))
 			#get only the 20 brighter stars
 			b=a[['NUMBER','MAG_AUTO','X_IMAGE','Y_IMAGE']]
 			c=np.sort(b,order='MAG_AUTO')
@@ -294,14 +349,15 @@ class triangleComposer(Composer):
 			yy,ylow,yhigh=sigmaclip(result[:,1],low=1.5,high=1.5)
 			x=xx.mean()
 			y=yy.mean()
-			print xx,yy
+			#print xx,yy
 			if np.isnan(x):
 				x=0
 			if np.isnan(y):
 				y=0
 			homo[k]={'x':x,'y':y}
+			print homo[k]
+			print
 		self.homo=homo
-		print homo
 
 	def stack(self):
 		homo=self.homo
@@ -394,6 +450,7 @@ class resolvComposer(Composer):
 
 if __name__ == '__main__':
 	co=triangleComposer('.')
+	co.rankFrames()
 	co.getTriangles()
 	co.match()
 	co.homografy()
