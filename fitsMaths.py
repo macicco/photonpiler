@@ -8,6 +8,10 @@ class fitMaths():
 
 	def __init__(self, fitsname):
 		self.hdulist = pyfits.open(fitsname)
+		header=self.hdulist[0].header
+		(xsize,ysize)=(header['NAXIS1'],header['NAXIS2'])
+		self.size=(xsize,ysize)
+		print self.size
 		self.fitsname=fitsname
 
 	def __add__(self, other):
@@ -41,6 +45,17 @@ class fitMaths():
 		new.hdulist[0].data = scalar * new.hdulist[0].data 
 		return new
 
+	def rotate90(self,ccw=False):
+		new=fitMaths(self.fitsname)
+		(xsize,ysize)=self.size
+		new.size=(ysize,xsize)
+		new.hdulist[0].header['NAXIS1']=ysize
+		new.hdulist[0].header['NAXIS2']=xsize
+		#ccw ->Counter Clock Wise
+		new.hdulist[0].data=np.transpose(new.hdulist[0].data)
+		return new
+	
+			
 
 	def dark(self, darkfitsname):
 		dark = pyfits.open(darkfitsname)
@@ -52,6 +67,8 @@ class fitMaths():
 		factor=newExp/darkExp
 		print newExp,darkExp,factor
 		other=dark[0].data
+		#print "Dark  shape:",other.shape
+		#print "Light shape:",new.hdulist[0].data.shape
 		new.hdulist[0].data = new.hdulist[0].data - factor * other
 		return new
 
