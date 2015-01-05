@@ -144,6 +144,9 @@ class triangleComposer(fBaseComposer.fBaseComposer):
 		self.homo=homo
 
 	def stack(self):
+		band=self.actualBand
+		Daylight_multipliers={'Ri':2.129439,'Gi1':0.937830,'Gi2':0.937830,'Bi':1.096957}
+		factor=Daylight_multipliers[self.BandMap[band]]**(1/2.2)
 		homo=self.homo
 		xdeltaMax=0
 		xdeltaMin=0
@@ -166,7 +169,8 @@ class triangleComposer(fBaseComposer.fBaseComposer):
 			frame.save(light.replace('IMG','_IMG'))
 			Master=Master+frame
 
-		outfile=self.outdir+"/output.fit"
+		outfile=self.outdir+"/output."+band+".fit"
+		Master=factor*Master
 		Master.save(outfile)
 
 	def distance(self,p0,p1):
@@ -234,10 +238,14 @@ class resolvComposer(fBaseComposer.fBaseComposer):
 if __name__ == '__main__':
 	co=triangleComposer('.')
 	co.rankFrames()
-	co.getRGB()
+	#co.getRGB()
 	co.getTriangles()
 	co.match()
 	co.homografy()
+	co.stack()
+	co.init('Ri')
+	co.stack()
+	co.init('Bi')
 	co.stack()
 
 
