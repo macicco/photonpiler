@@ -10,7 +10,7 @@ from scipy.stats import sigmaclip
 class fBaseComposer():
 
 	def __init__(self,path):
-		self.nsigma=1.5
+		self.nsigma=1.7
 		self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','u':'u'}
 		self.scriptpath, self.scriptname = os.path.split(os.path.abspath(__file__))
 		print "Script path:",self.scriptpath
@@ -31,7 +31,7 @@ class fBaseComposer():
 		if os.path.exists(self.darkspath):
 			if not os.path.exists(self.outdir+'/masterdark.'+band+'.fit'):
 				self.darkRaws=self.searchRawFiles(self.darkspath)
-				self.darkFits=self.rawtran(self.darkRaws,dark=False,flat=False)
+				self.darkFits=self.rawtran(self.darkRaws,dark=False,flat=False,rotate=False)
 				self.NumDarks=len(self.darkFits)
 				dark=self.MasterDark()
 				dark.save(self.outdir+'/masterdark.'+band+'.fit')
@@ -66,12 +66,13 @@ class fBaseComposer():
 		self.lightRaws=self.searchRawFiles(self.lightspath)
 		try:
 			oldband=self.BaseBand
-			self.lightFits=map(lambda x:x.replace(oldband,band),self.lightFits)
+			self.lightFits=map(lambda x:x.replace(oldband,band),self.lightFitsBase)
 			print "Second pass"
 			self.rawtran(self.lightRaws)
 		except:
 			print "First pass"
 			self.lightFits=self.rawtran(self.lightRaws)
+
 
 		self.NumLights=len(self.lightFits)
 
@@ -97,7 +98,7 @@ class fBaseComposer():
 			l.append(path+"/"+file)
 		return l
 
-	def rawtran(self,raws,dark=True,flat=False,rotate=False):
+	def rawtran(self,raws,dark=True,flat=True,rotate=False):
 		iband=self.BandMap[self.actualBand]
 		band=self.actualBand
 		l=[]
@@ -141,7 +142,7 @@ class fBaseComposer():
 		    if not os.path.exists(outfile):
 			print "rawtran-ting:",outfile
 			strCmd= 'rawtran -c '+BandMap[B]+' -B -32 -o '+outfile+ " " + raw
-			print strCmd
+			print strCmdIMG_6857.Ri.fit
 			res=commands.getoutput(strCmd)
 			print res
 
@@ -216,15 +217,17 @@ class fBaseComposer():
 		for s in selected_:
 			self.lightFits.append(s)
 		print self.lightFits
+		self.lightFitsBase=self.lightFits
 
 
 	def MasterFlat(self):
 		superflat=self.Sum(self.flatFits)
-		mean=superflat.hdulist[0].data.max()
-		return (1./mean)*superflat
+		max=superflat.hdulist[0].data.max()
+		return (1./max)*superflat
 
 	def MasterDark(self):
-		return (1./self.NumDarks)*self.Sum(self.darkFits)
+		#return (1./self.NumDarks)*self.Sum(self.darkFits)
+		return self.Sum(self.darkFits)
 
 		
 
@@ -233,9 +236,17 @@ class fBaseComposer():
 		for i,fit in enumerate(fits):
 			if i==0:
 				Master=fitsMaths.fitMaths(fit)
+				(xsize,ysize)=Master.hdulist[0].data.shape
 				print "init sum:",fit
+				stackedData=Master.hdulist[0].data.reshape((-1))
 			else:
-				Master=fitsMaths.fitMaths(fit)+Master
+				frameData=Master.hdulist[0].data.reshape((-1))
+				stackedData=np.vstack((stackedData,frameData))
+				#Master=fitsMaths.fitMaths(fit)+Master
 				print "+",fit
+		median=np.median(stackedData,axis=0)
+		Master.hdulist[0].data=median.reshape((xsize,ysize))
 		return Master
+
+
 

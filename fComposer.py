@@ -5,10 +5,13 @@ import fBaseComposer
 import os,commands
 import numpy as np
 from scipy.stats import sigmaclip
-from  scipy.ndimage.interpolation import shift
+from scipy.ndimage.interpolation import shift
 
 
-
+'''
+Triangle registration
+No astrometric catalog needed
+'''
 class triangleComposer(fBaseComposer.fBaseComposer):
 
 	def getTriangles(self):
@@ -156,26 +159,44 @@ class triangleComposer(fBaseComposer.fBaseComposer):
 			if k==0:
 				Master=fitsMaths.fitMaths(light)
 				(xsize,ysize)=Master.hdulist[0].data.shape
+				stackedData=Master.hdulist[0].data.reshape((-1))
 				print "Fits size:",xsize,ysize
 				continue	
-			print "Frame",k
+			print "Frame",light,k
 			
 			frame=fitsMaths.fitMaths(light)
 			x_=homo[k]['x']	
 			y_=homo[k]['y']
 			print "Shifting:",x_,y_
 			frame.hdulist[0].data=shift(frame.hdulist[0].data,(-y_,-x_))
-			print frame.hdulist[0].data.shape
+			frameData=Master.hdulist[0].data.reshape((-1))
 			frame.save(light.replace('IMG','_IMG'))
+			stackedData=np.vstack((stackedData,frameData))
 			Master=Master+frame
 
 		outfile=self.outdir+"/output."+band+".fit"
-		Master=factor*Master
+		#Master=factor*Master
+		Master.hdulist[0].data=factor*self.combine(stackedData).reshape((xsize,ysize))
+		#Master.hdulist[0].data=MasterData.reshape((xsize,ysize)).copy()
 		Master.save(outfile)
 
 	def distance(self,p0,p1):
 		return np.sqrt((p1[0]-p0[0])**2+(p1[1]-p0[1])**2)
 
+
+	def combine(self,data):
+		print data.shape
+		std=np.std(data,axis=0)
+		mean=np.mean(data,axis=0)
+		median=np.median(data,axis=0)
+		mini=np.min(data,axis=0)
+		maxi=np.max(data,axis=0)
+		zeros=np.zeros(data.shape[1])
+		return maxi
+
+'''
+Astrometric registration
+'''
 class resolvComposer(fBaseComposer.fBaseComposer):
 
 	def astrometry(self):
@@ -242,6 +263,8 @@ if __name__ == '__main__':
 	co.getTriangles()
 	co.match()
 	co.homografy()
+	co.stack()
+	co.init('Gi2')
 	co.stack()
 	co.init('Ri')
 	co.stack()
