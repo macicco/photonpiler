@@ -146,56 +146,88 @@ class triangleComposer(fBaseComposer.fBaseComposer):
 			print
 		self.homo=homo
 
-	def stack(self):
+	def stack(self,combine='median'):
 		band=self.actualBand
-		Daylight_multipliers={'Ri':2.129439,'Gi1':0.937830,'Gi2':0.937830,'Bi':1.096957}
-		factor=Daylight_multipliers[self.BandMap[band]]**(1/2.2)
-		homo=self.homo
 		xdeltaMax=0
 		xdeltaMin=0
 		ydeltaMax=0
 		ydeltaMin=0
+		fitsList=[]
 		for k,light in enumerate(self.lightFits):
 			if k==0:
-				Master=fitsMaths.fitMaths(light)
-				(xsize,ysize)=Master.hdulist[0].data.shape
-				stackedData=Master.hdulist[0].data.reshape((-1))
-				print "Fits size:",xsize,ysize
+				fitsList.append(light)
 				continue	
-			print "Frame",light,k
-			
+			print "Frame",light,k	
+			homo=self.homo
 			frame=fitsMaths.fitMaths(light)
 			x_=homo[k]['x']	
 			y_=homo[k]['y']
 			print "Shifting:",x_,y_
 			frame.hdulist[0].data=shift(frame.hdulist[0].data,(-y_,-x_))
-			frameData=Master.hdulist[0].data.reshape((-1))
-			frame.save(light.replace('IMG','_IMG'))
-			stackedData=np.vstack((stackedData,frameData))
-			Master=Master+frame
+			shiftedlight=light.replace('IMG','_IMG')
+			frame.save(shiftedlight)
+			fitsList.append(shiftedlight)
 
 		outfile=self.outdir+"/output."+band+".fit"
-		#Master=factor*Master
-		Master.hdulist[0].data=factor*self.combine(stackedData).reshape((xsize,ysize))
-		#Master.hdulist[0].data=MasterData.reshape((xsize,ysize)).copy()
+		Master=self.combine(fitsList,combine=combine)
 		Master.save(outfile)
+		return outfile
 
 	def distance(self,p0,p1):
 		return np.sqrt((p1[0]-p0[0])**2+(p1[1]-p0[1])**2)
 
+	def doRGB(self,combine='median',baseband='Gi1'):
+		bands=['Ri','Gi1','Gi2','Bi']
+		self.BaseBand=baseband
+		try:
+			del self.lightFitsBase
+		except:
+			pass
+		bands.remove(baseband)
+		print "BASE BAND:",baseband
+		print "Other bands:",bands
+		self.init(self.BaseBand)
+		if self.NumLights>1:
+			self.rankFrames()
+			self.getTriangles()
+			self.match()
+			self.homografy()
+		filename=self.stack(combine=combine)
+		outfiles={baseband:filename}
+		for B in bands:
+			self.init(B)
+			filename=self.stack(combine=combine)
+			outfiles[B]=filename
+		'''combine Gi1 and Gi2 '''
+		Gi=self.combine((outfiles['Gi1'],outfiles['Gi2']),combine='median')
+		filename=self.outdir+"/output.Gi.fit"
+		Gi.save(filename)
+		outfiles.pop("Gi1", None)
+		outfiles.pop("Gi2", None)
+		outfiles['Gi']=filename
+		return outfiles
 
-	def combine(self,data):
-		print data.shape
-		std=np.std(data,axis=0)
-		mean=np.mean(data,axis=0)
-		median=np.median(data,axis=0)
-		mini=np.min(data,axis=0)
-		maxi=np.max(data,axis=0)
-		zeros=np.zeros(data.shape[1])
-		return maxi
+	def doLuminance(self,combine='median'):
+		self.BaseBand='u'
+		try:
+			del self.lightFitsBase
+		except:
+			pass
+
+		print "Luminance band:",self.BaseBand
+		self.init(self.BaseBand)
+		if self.NumLights>1:
+			self.rankFrames()
+			self.getTriangles()
+			self.match()
+			self.homografy()
+		filename=self.stack(combine=combine)
+		outfiles={self.BaseBand:filename}
+		return outfiles
 
 '''
 Astrometric registration
+NOT FINISHED!
 '''
 class resolvComposer(fBaseComposer.fBaseComposer):
 
@@ -257,19 +289,22 @@ class resolvComposer(fBaseComposer.fBaseComposer):
 
 
 if __name__ == '__main__':
-	co=triangleComposer('.')
-	co.rankFrames()
-	#co.getRGB()
-	co.getTriangles()
-	co.match()
-	co.homografy()
-	co.stack()
-	co.init('Gi2')
-	co.stack()
-	co.init('Ri')
-	co.stack()
-	co.init('Bi')
-	co.stack()
+	'''
+
+	'''
+	co=triangleComposer('.',dark=True,flat=True)
+	RGBfiles=co.doRGB(combine='median')
+#	RGBfiles={'Bi': './OUTPUT/output.Bi.fit', 'Gi': './OUTPUT/output.Ri.fit', 'Ri': './OUTPUT/output.Gi.fit'}
+	fBaseComposer.RGBcomposer(RGBfiles,gamma=2.2)
+	Lfiles=co.doLuminance(combine='median')
+#	Lfiles={'u':'./OUTPUT/output.u.fit'}
+	fBaseComposer.RGBcomposer(Lfiles,gamma=2.2)
+
+
+
+
+
+
 
 
 	

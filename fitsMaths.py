@@ -11,7 +11,6 @@ class fitMaths():
 		header=self.hdulist[0].header
 		(xsize,ysize)=(header['NAXIS1'],header['NAXIS2'])
 		self.size=(xsize,ysize)
-		print self.size
 		self.fitsname=fitsname
 
 	def __add__(self, other):
@@ -63,9 +62,9 @@ class fitMaths():
 
 		new=fitMaths(self.fitsname)
 		newExp= float(new.hdulist[0].header['EXPTIME'])
-
+		print "TEMP FRAME:",new.hdulist[0].header['CCD-TEMP'],"TEMP DARK",dark[0].header['CCD-TEMP']
 		factor=newExp/darkExp
-		print newExp,darkExp,factor
+		print 'Appliying DARK newExp,darkExp,factor:',newExp,darkExp,factor
 		other=dark[0].data
 		#print "Dark  shape:",other.shape
 		#print "Light shape:",new.hdulist[0].data.shape
@@ -78,11 +77,9 @@ class fitMaths():
 
 		new=fitMaths(self.fitsname)
 		newExp= float(new.hdulist[0].header['EXPTIME'])
-
 		other=flat[0].data
-		factor=np.median(other)
-		print newExp,flatExp,factor
-		new.hdulist[0].data = new.hdulist[0].data /  (other /factor)
+		print 'Appliying FLAT newExp,flatExp:',newExp,flatExp
+		new.hdulist[0].data = new.hdulist[0].data /  other 
 		return new
 
 	def save(self,f):
