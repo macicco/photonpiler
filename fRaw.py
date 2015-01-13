@@ -50,7 +50,7 @@ class fBaseComposer():
 				print
 				print "=========== DARK FRAMES ============== BAND:",band
 				print "Path:", self.darkspath
-				self.darkFits=self.rawtran(self.darkRaws,dark=False,flat=False,rotate=False)
+				self.darkFits=self.rawtran(self.darkRaws,dark=False,flat=False,rotate=True)
 				self.NumDarks=len(self.darkFits)
 				print "Darks frames found:",self.NumDarks
 
@@ -381,12 +381,13 @@ class RGBcomposer():
 		data=hdulist[0].data-hdulist[0].data.min()
 		data=Daylight_multipliers[band]*data
 		if band=='u':
-			gammamax=gamma(data,self.gamma).max()
+			gammamax=gamma(data,self.gamma,bits=16*3).max()
 			gammamin=0
+			data=gamma(data,self.gamma,bits=16*3)
 		else:
 			gammamax=self.RGBmax
 			gammamin=self.RGBmin
-		data=gamma(data,self.gamma)
+			data=gamma(data,self.gamma)
 		data=clip(data)
 		data=lingray(data,a=gammamin,b=gammamax,bits=16).astype(np.uint16)
 		#data=lingray(data,bits=16).astype(np.uint16)
@@ -424,7 +425,7 @@ class RGBcomposer():
 			cmdStr='convert '
 			for band in ('Ri','Gi','Bi'):
 				cmdStr=cmdStr+self.RGBdict[band].replace('fit','tif')+' '
-			cmdStr=cmdStr+' -set colorspace RGB -combine -set colorspace sRGB output.RGB.tiff'
+			cmdStr=cmdStr+' -set colorspace raw -combine -set colorspace raw output.RGB.tiff'
 			print cmdStr
 			res=commands.getoutput(cmdStr)
 			print res
@@ -437,7 +438,11 @@ class RGBcomposer():
 	def stiffRGB(self):
 		cmdStr='stiff '
 		for band in ('Ri','Gi','Bi'):
-			cmdStr=cmdStr+self.RGBdict[band]+' '
+			scaledFits=self.RGBdict[band].replace('fit','scaled.fit')
+			with pyfits.open(self.RGBdict[band]) as hdulist:
+				hdulist[0].data=self.Daylight_multipliers[band]*hdulist[0].data
+				hdulist.writeto(scaledFits,clobber=True) 
+			cmdStr=cmdStr+scaledFits+' '
 		cmdStr=cmdStr+' -OUTFILE_NAME stiff.RGB.tif'
 		print cmdStr
 		res=commands.getoutput(cmdStr)
@@ -452,6 +457,8 @@ class RGBcomposer():
 		print res
 
 def clip(array,nsigmas=6):
+	'''NOT IMPLEMENTED'''
+	return array
 	mean=array.mean()
 	std=array.std()
 	z0=mean-nsigmas*std
@@ -464,7 +471,7 @@ def clip(array,nsigmas=6):
 		print "Not clip needed"
 	return  clipped
 
-def gamma(array,coeff,bits=14):
+def gamma(array,coeff,bits=16):
 	maximo=float(2**bits)
 	data=array/maximo
 	data=data**(1/coeff)

@@ -293,12 +293,12 @@ if __name__ == '__main__':
 
 	'''
 	co=triangleComposer('.',dark=True,flat=True)
-	RGBfiles=co.doRGB(combine='median')
+	RGBfiles=co.doRGB(combine='max')
 #	RGBfiles={'Bi': './OUTPUT/output.Bi.fit', 'Gi': './OUTPUT/output.Ri.fit', 'Ri': './OUTPUT/output.Gi.fit'}
-	fBaseComposer.RGBcomposer(RGBfiles,gamma=2.2)
+	fBaseComposer.RGBcomposer(RGBfiles,gamma=1)
 	Lfiles=co.doLuminance(combine='median')
 #	Lfiles={'u':'./OUTPUT/output.u.fit'}
-	fBaseComposer.RGBcomposer(Lfiles,gamma=2.2)
+	fBaseComposer.RGBcomposer(Lfiles,gamma=1)
 
 
 
