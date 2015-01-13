@@ -82,8 +82,41 @@ class fitMaths():
 		new.hdulist[0].data = new.hdulist[0].data /  other 
 		return new
 
-	def save(self,f):
-		self.hdulist.writeto(f,clobber=True) 
+	def save(self,filename):
+		self.hdulist.writeto(filename,clobber=True)
+
+
+def SumFits(fits):
+	return combineFits(fits,op='sum')
+
+def combineFits(fits,combine='median'):
+	print fits
+	op_dict={'median':np.median,'mean':np.mean,'max':np.max,'min':np.min,'sum':np.sum}
+	for i,fit in enumerate(fits):
+		if i==0:
+			Master=fitMaths(fit)
+			(xsize,ysize)=Master.hdulist[0].data.shape
+			print "Combine:",combine
+			print fits
+			stackedData=Master.hdulist[0].data.reshape((-1))
+			header=Master.hdulist[0].header
+			print "FRAME:",i," mean/std:",stackedData.mean(),stackedData.std(),\
+			"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
+		else:
+			frame=fitMaths(fit)
+			frameData=frame.hdulist[0].data.reshape((-1))
+			header=Master.hdulist[0].header
+			print "FRAME:",i," mean/std:",frameData.mean(),stackedData.std(),\
+			"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
+			stackedData=np.vstack((stackedData,frameData))
+	if i==0:
+		print "Combining only 1 frame. Return as its"
+		return Master			
+	median=op_dict[combine](stackedData,axis=0)
+	Master.hdulist[0].data=median.reshape((xsize,ysize))
+	print  "combination mean/std",median.mean(),median.std()
+	return Master
+
 
 if __name__ == '__main__':
     '''
