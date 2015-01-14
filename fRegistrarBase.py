@@ -19,11 +19,13 @@ class registrarBase():
 		self.cfg=cfg
 		self.bands=['Ri','Gi1','Gi2','Bi']
 		self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','u':'u'}
+		self.scriptpath, self.scriptname = os.path.split(os.path.abspath(__file__))
+		print "Script path:",self.scriptpath
 		lightFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['lightsdir'])
 		darkFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['darksdir'])
 		flatFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['flatsdir'])
-		self.fitFrames={'lights':lightFits,'darks':darkFits,'flats':flatFits}
-		self.num={'lights':len(lightFits),'darks':len(darkFits),'flats':len(flatFits)}
+		self.fitFrames={'lightsBase':lightFits,'darks':darkFits,'flats':flatFits}
+		self.num={'lightsBase':len(lightFits),'darks':len(darkFits),'flats':len(flatFits)}
 		self.nsigma=1.5
 
 	def searchFitFiles(self,path):
@@ -45,8 +47,7 @@ class registrarBase():
 			std=hdulist[0].std()	
 			print ISO,exp,Temp,mini,maxi,mean,std
 
-	def sex(self,n,extra=''):
-		fit=self.fitFrames['lights'][n]	
+	def sex(self,fit,extra=''):
 		name=fit.replace('.fit','.cat')
 		if not os.path.exists(name):
 			#outfile=self.outdir+"/"+os.path.basename(fit).replace('fit','cat')
@@ -78,29 +79,27 @@ class registrarBase():
 		return filter_data
 
 	def rankFrames(self):
-		for k,light in enumerate(self.fitFrames['lights']):
+		for k,light in enumerate(self.fitFrames['lightsBase']):
 			print "Extracting sources and rank:",light
-			data=self.sex(k)
-			fit=self.lightFits[k]
+			data=self.sex(light)
 			meanFWHM,meanELLIPTICITY=self.getQuality(data)
 			print meanFWHM,meanELLIPTICITY
 			rank=np.zeros((1,),dtype=self.rankdt)
 			if len(self.rank)==1 and self.rank['fwhm']==0:
 				self.rank['frame']=k
-				self.rank['framename']=fit
+				self.rank['framename']=light
 				self.rank['fwhm']=meanFWHM
 				self.rank['ellipticity']=meanELLIPTICITY
 			else:
 				rank['frame']=k
-				rank['framename']=fit
+				rank['framename']=light
 				rank['fwhm']=meanFWHM
 				rank['ellipticity']=meanELLIPTICITY
 				self.rank=np.vstack((self.rank,rank))
 		self.rank=np.sort(self.rank,order=['ellipticity','fwhm'],axis=0)
 		if k==0:
 			print "Only one frame. Not rank"
-			self.lightFits=light
-			self.lightFitsBase=self.lightFits
+			self.fitFrames['lightsBase']=light
 			return
 		print "Sorting"
 
@@ -117,11 +116,11 @@ class registrarBase():
 		print maxEllip
 		print selected
 		selected_=selected['framename']
-		self.lightFits=[]
+		dummy=[]
 		for s in selected_:
-			self.lightFits.append(s)
-		print self.lightFits
-		self.lightFitsBase=self.lightFits
+			dummy.append(s)
+		self.fitFrames['lights']=dummy
+
 
 
 

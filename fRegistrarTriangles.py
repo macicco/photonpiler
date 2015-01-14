@@ -187,7 +187,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		bands.remove(baseband)
 		print "BASE BAND:",baseband
 		print "Other bands:",bands
-		if self.num['lights']>1:
+		if self.num['lightsBase']>1:
 			self.rankFrames()
 			self.getTriangles()
 			self.match()
