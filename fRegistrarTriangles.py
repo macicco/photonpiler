@@ -1,18 +1,19 @@
 #!/usr/bin/python
 # -*- coding: iso-8859-15 -*-
-import fitsMaths
-import fBase
 import os,commands
 import numpy as np
 from scipy.stats import sigmaclip
 from scipy.ndimage.interpolation import shift
+
+import fitsMaths
+import fRegistrarBase
 
 
 '''
 Triangle registration
 No astrometric catalog needed
 '''
-class registrarTriangle(fBase.registrarBase):
+class registrarTriangle(fRegistrarBase.registrarBase):
 
 	def getTriangles(self):
 		numstars=20
@@ -169,7 +170,7 @@ class registrarTriangle(fBase.registrarBase):
 			fitsList.append(shiftedlight)
 
 		outfile=self.outdir+"/output."+band+".fit"
-		Master=self.combine(fitsList,combine=combine)
+		Master=fitsMaths.combineFits(fitsList,combine=combine)
 		Master.save(outfile)
 		return outfile
 
@@ -186,8 +187,7 @@ class registrarTriangle(fBase.registrarBase):
 		bands.remove(baseband)
 		print "BASE BAND:",baseband
 		print "Other bands:",bands
-		self.init(self.BaseBand)
-		if self.NumLights>1:
+		if self.num['lights']>1:
 			self.rankFrames()
 			self.getTriangles()
 			self.match()
@@ -195,11 +195,10 @@ class registrarTriangle(fBase.registrarBase):
 		filename=self.stack(combine=combine)
 		outfiles={baseband:filename}
 		for B in bands:
-			self.init(B)
 			filename=self.stack(combine=combine)
 			outfiles[B]=filename
 		'''combine Gi1 and Gi2 '''
-		Gi=self.combine((outfiles['Gi1'],outfiles['Gi2']),combine='median')
+		Gi=fitsMaths.combineFits((outfiles['Gi1'],outfiles['Gi2']),combine='median')
 		filename=self.outdir+"/output.Gi.fit"
 		Gi.save(filename)
 		outfiles.pop("Gi1", None)
@@ -230,7 +229,7 @@ if __name__ == '__main__':
 	'''
 
 	'''
-	co=registrarTriangle('.')
+	co=registrarTriangle()
 	RGBfiles=co.doRGB(combine='max')
 	exit(0)
 #	RGBfiles={'Bi': './OUTPUT/output.Bi.fit', 'Gi': './OUTPUT/output.Ri.fit', 'Ri': './OUTPUT/output.Gi.fit'}

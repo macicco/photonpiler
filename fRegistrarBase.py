@@ -8,119 +8,28 @@ from scipy.stats import sigmaclip
 from scipy.stats import entropy
 import Image
 import simplejson
+import fConfig
 
 class registrarBase():
-
-	def __init__(self,path,dark=True,flat=True):
-		self.doDark=dark
-		self.doFlat=flat
-		self.nsigma=1.5
-		#CANON600D bandmap. rawtran do wrong
+	'''
+	Base registrar class. Searhc files, sex and rank
+	'''
+	def __init__(self):
+		cfg=fConfig.fConfig().getSection('REGISTRAR')
+		self.cfg=cfg
+		self.bands=['Ri','Gi1','Gi2','Bi']
 		self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','u':'u'}
-		self.scriptpath, self.scriptname = os.path.split(os.path.abspath(__file__))
-		print "Script path:",self.scriptpath
-		print "Processing directory:",path
-		self.path=path
-		self.lightspath=path+"/SCIENCE"
-		self.darkspath=path+"/DARKS"
-		self.flatspath=path+"/FLATS"
-		self.outdir=path+"/OUTPUT"
-		self.rawfitsdir=self.outdir+"/rawfits"
-		if not os.path.exists(self.outdir):
-			os.mkdir(self.outdir) 
-		if not os.path.exists(self.rawfitsdir):
-			os.mkdir(self.rawfitsdir) 
+		lightFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['lightsdir'])
+		darkFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['darksdir'])
+		flatFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['flatsdir'])
+		self.fitFrames={'lights':lightFits,'darks':darkFits,'flats':flatFits}
+		self.num={'lights':len(lightFits),'darks':len(darkFits),'flats':len(flatFits)}
+		self.nsigma=1.5
 
-
-
-
-
-	def init(self,band):
-		dark=self.doDark
-		flat=self.doFlat
-		print
-		print "			============================"
-		print "			Processing BAND:",band
-		print "			============================"
-		print
-		self.actualBand=band
-		if os.path.exists(self.darkspath) and dark:
-			if not os.path.exists(self.outdir+'/masterdark.'+band+'.fit'):
-				self.darkRaws=self.searchRawFiles(self.darkspath)
-				print
-				print "=========== DARK FRAMES ============== BAND:",band
-				print "Path:", self.darkspath
-				self.darkFits=self.rawtran(self.darkRaws,dark=False,flat=False,rotate=True)
-				self.NumDarks=len(self.darkFits)
-				print "Darks frames found:",self.NumDarks
-
-				print self.darkRaws
-				print self.darkFits
-				print
-				print "Generating MASTERDARK:",self.outdir+'/masterdark.'+band+'.fit'
-				dark=self.MasterDark()
-				dark.save(self.outdir+'/masterdark.'+band+'.fit')
-
-			ifile=self.outdir+'/masterdark.'+band+'.fit'
-
-		else:
-			print "NO DARKS"
-		
-		if os.path.exists(self.flatspath) and flat:
-			if not os.path.exists(self.outdir+'/masterflat.'+band+'.fit'):
-				self.flatRaws=self.searchRawFiles(self.flatspath)
-				print
-				print "=========== FLAT FRAMES ============== BAND:",band
-				print "Path:", self.flatspath
-				self.flatFits=self.rawtran(self.flatRaws,dark=True,flat=False,rotate=True)
-				self.NumFlats=len(self.flatFits)
-				print "Flat frames found:",self.NumFlats
-				print self.flatRaws
-				print self.flatFits
-				print
-				print "Generating MASTERFLAT:",self.outdir+'/masterflat.'+band+'.fit'
-				flat=self.MasterFlat(op='median')
-				flat.save(self.outdir+'/masterflat.'+band+'.fit')
-
-			ifile=self.outdir+'/masterflat.'+band+'.fit'
-
-		else:
-			print "NO FLATS"
-		print
-		print "=========== LIGHT FRAMES ============== BAND:",band
-		print "Path:", self.lightspath
-		self.lightRaws=self.searchRawFiles(self.lightspath)
-		try:
-			oldband=self.BaseBand
-			self.lightFits=map(lambda x:x.replace(oldband,band),self.lightFitsBase)
-			print "Second pass"
-			self.rawtran(self.lightRaws,dark,flat)
-		except:
-			print "First pass"
-			self.lightFits=self.rawtran(self.lightRaws,dark,flat)
-		print self.lightFits
-
-		self.NumLights=len(self.lightFits)
-
-
-
-		print "Light frames found:",self.NumLights
-		print self.lightRaws
-		print self.lightFits
-		print "=========== OUTPUT ============== BAND:",band
-		print "Path:", self.outdir
-		self.rankdt=np.dtype([('frame',int),('framename',object),('rank',int),\
-				('register',bool),('fwhm',float),('ellipticity',float)])
-		self.rank=np.zeros((1,),dtype=self.rankdt)
-
-
-
-
-
-	def searchRawFiles(self,path):
+	def searchFitFiles(self,path):
 		l=[]
 		for file in os.listdir(path):
-		    if file.endswith(".CR2"):
+		    if file.endswith(".fit"):
 			l.append(path+"/"+file)
 		return l
 
@@ -136,82 +45,8 @@ class registrarBase():
 			std=hdulist[0].std()	
 			print ISO,exp,Temp,mini,maxi,mean,std
 
-	def exif2fit(self,raw,fit):
-		print "extracting exif information from:",raw
-		strCmd= 'exiftool -j '+ raw
-		res=commands.getoutput(strCmd)
-		exifjson=res.strip().replace('\n','')[1:-1]
-		exiftags=simplejson.loads(exifjson)
-		print "updating FIT HEADER",fit
-		with 	pyfits.open(fit,mode='update') as hdulist:
-			header=hdulist[0].header
-			header['CCD-TEMP']=float(exiftags['CameraTemperature'].replace(' ','').replace('C',''))
-			header['COMMENT']="ORIGINAL EXIF DATA BEGIN:"
-			for exifkey in exiftags.keys():
-				header['COMMENT']="EXIF:: "+exifkey+":"+str(exiftags[exifkey])
-			header['COMMENT']="ORIGINAL EXIF DATA END:"
-
-	def rawtran(self,raws,dark=True,flat=True,rotate=False):
-		iband=self.BandMap[self.actualBand]
-		band=self.actualBand
-		l=[]
-		for raw in raws:
-			outfile=self.outdir+"/"+os.path.basename(raw).replace('CR2',band+'.fit')
-			if not os.path.exists(outfile):
-				print ".-.-.-."
-				print "rawtran-ting:",outfile
-				strCmd= 'rawtran -c '+iband+' -B -32 -o '+outfile+ " " + raw
-				print strCmd
-				res=commands.getoutput(strCmd)
-				print res
-				'''Copy exif information to fit'''
-				self.exif2fit(raw,outfile)
-
-				rawfits=self.rawfitsdir+"/"+os.path.basename(raw).replace('CR2',band+'.fit')
-
-				print "saving raw fits:",rawfits
-				strCmd= 'cp -v '+outfile+ " " + rawfits
-				print strCmd
-				res=commands.getoutput(strCmd)
-				print res
-				if rotate:
-					light=fitsMaths.fitMaths(outfile)
-					light=light.rotate90()
-					light.save(outfile)
-				if dark:
-					darkfile=self.outdir+'/masterdark.'+band+'.fit'
-					if os.path.exists(darkfile):
-						light=fitsMaths.fitMaths(outfile)
-						light=light.dark(darkfile)
-						light.save(outfile)
-
-						
-				if flat:
-					flatfile=self.outdir+'/masterflat.'+band+'.fit'
-					if os.path.exists(flatfile):
-						light=fitsMaths.fitMaths(outfile)
-						light=light.flat(flatfile)
-						light.save(outfile)
-			else:
-				print "Already exist:",outfile
-			l.append(outfile)
-		return l
-
-	def getRGB(self):
-		BandMap=self.BandMap
-		fit=self.lightFits[0]
-		for B in ['Ri','Gi1','Gi2','Bi']: 
-		    raw=self.lightspath+'/'+os.path.basename(fit).replace('.fit','.CR2')
-   		    outfile=self.outdir+"/"+os.path.basename(raw).replace('.CR2','.'+B+'.fit')
-		    if not os.path.exists(outfile):
-			print "rawtran-ting:",outfile
-			strCmd= 'rawtran -c '+BandMap[B]+' -B -32 -o '+outfile+ " " + raw
-			print strCmdIMG_6857.Ri.fit
-			res=commands.getoutput(strCmd)
-			print res
-
 	def sex(self,n,extra=''):
-		fit=self.lightFits[n]	
+		fit=self.fitFrames['lights'][n]	
 		name=fit.replace('.fit','.cat')
 		if not os.path.exists(name):
 			#outfile=self.outdir+"/"+os.path.basename(fit).replace('fit','cat')
@@ -243,7 +78,7 @@ class registrarBase():
 		return filter_data
 
 	def rankFrames(self):
-		for k,light in enumerate(self.lightFits):
+		for k,light in enumerate(self.fitFrames['lights']):
 			print "Extracting sources and rank:",light
 			data=self.sex(k)
 			fit=self.lightFits[k]
@@ -289,48 +124,5 @@ class registrarBase():
 		self.lightFitsBase=self.lightFits
 
 
-	def MasterFlat(self,op='median'):
-		superflat=self.combine(self.flatFits,op)
-		maxi=superflat.hdulist[0].data.mean()
-		superflat=(1./maxi)*superflat
-		print "Renormalizing mean/std:",superflat.hdulist[0].data.mean(),superflat.hdulist[0].data.std()
-		return superflat
-
-	def MasterDark(self,op='median'):
-		#return (1./self.NumDarks)*self.Sum(self.darkFits)
-		return self.combine(self.darkFits,op)
-
-		
-
-	def Sum(self,fits):
-		return self.combine(fits,op='sum')
-
-	def combine(self,fits,combine='median'):
-		op_dict={'median':np.median,'mean':np.mean,'max':np.max,'min':np.min,'sum':np.sum}
-		for i,fit in enumerate(fits):
-			if i==0:
-				Master=fitsMaths.fitMaths(fit)
-				(xsize,ysize)=Master.hdulist[0].data.shape
-				print "Combine:",combine
-				print fits
-				stackedData=Master.hdulist[0].data.reshape((-1))
-				header=Master.hdulist[0].header
-				print "FRAME:",i," mean/std:",stackedData.mean(),stackedData.std(),\
-				"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
-
-			else:
-				frame=fitsMaths.fitMaths(fit)
-				frameData=frame.hdulist[0].data.reshape((-1))
-				header=Master.hdulist[0].header
-				print "FRAME:",i," mean/std:",frameData.mean(),stackedData.std(),\
-				"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
-				stackedData=np.vstack((stackedData,frameData))
-		if i==0:
-			print "Combining only 1 frame. Return as its"
-			return Master			
-		median=op_dict[combine](stackedData,axis=0)
-		Master.hdulist[0].data=median.reshape((xsize,ysize))
-		print  "combination mean/std",median.mean(),median.std()
-		return Master
 
 

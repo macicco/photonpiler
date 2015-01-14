@@ -4,10 +4,10 @@
 import os,commands
 import pyfits
 import numpy as np
-import fConfig
 import simplejson
-import fitsMaths
 
+import fitsMaths
+import fConfig
 
 
 class raw2fits():
