@@ -100,14 +100,14 @@ def combineFits(fits,combine='median'):
 			print fits
 			stackedData=Master.hdulist[0].data.reshape((-1))
 			header=Master.hdulist[0].header
-			print "FRAME:",i," mean/std:",stackedData.mean(),stackedData.std(),\
-			"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
+			print "FRAME:",i," mean/std:",stackedData.mean(),stackedData.std() #,\
+			#"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
 		else:
 			frame=fitMaths(fit)
 			frameData=frame.hdulist[0].data.reshape((-1))
 			header=Master.hdulist[0].header
-			print "FRAME:",i," mean/std:",frameData.mean(),stackedData.std(),\
-			"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
+			print "FRAME:",i," mean/std:",frameData.mean(),stackedData.std() #,\
+			#"EXP:",header['EXPTIME'],"ISO:",header['ISO'],"TEMP:",header['CCD-TEMP']
 			stackedData=np.vstack((stackedData,frameData))
 	if i==0:
 		print "Combining only 1 frame. Return as its"

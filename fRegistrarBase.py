@@ -15,24 +15,38 @@ class registrarBase():
 	Base registrar class. Searhc files, sex and rank
 	'''
 	def __init__(self):
-		cfg=fConfig.fConfig().getSection('REGISTRAR')
+		config=fConfig.fConfig()
+		cfg=config.getSection('REGISTRAR')
 		self.cfg=cfg
-		self.bands=['Ri','Gi1','Gi2','Bi']
-		self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','u':'u'}
+		self.bands=config.bands
+		self.BandMap=config.BandMap
 		self.scriptpath, self.scriptname = os.path.split(os.path.abspath(__file__))
 		print "Script path:",self.scriptpath
-		lightFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['lightsdir'])
-		darkFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['darksdir'])
-		flatFits=self.searchFitFiles(cfg['fitsdir']+'/'+cfg['flatsdir'])
-		self.fitFrames={'lightsBase':lightFits,'darks':darkFits,'flats':flatFits}
-		self.num={'lightsBase':len(lightFits),'darks':len(darkFits),'flats':len(flatFits)}
+		lightFits=self.searchDirs()
+		self.fitFrames={'lightsBase':lightFits}
+		self.num={'lightsBase':len(lightFits)}
+		print self.fitFrames
 		self.nsigma=1.5
+		self.rankdt=np.dtype([('frame',int),('framename',object),('rank',int),\
+				('register',bool),('fwhm',float),('ellipticity',float)])
+		self.rank=np.zeros((1,),dtype=self.rankdt)
+
+	def searchDirs(self):
+		cfg=self.cfg
+		lightFits={}
+		for B in self.bands:
+			path=cfg['fitsdir']+'/'+B+'/'+cfg['lightsdir']
+			lightFits[B]=self.searchFitFiles(path)
+		return lightFits
 
 	def searchFitFiles(self,path):
 		l=[]
-		for file in os.listdir(path):
-		    if file.endswith(".fit"):
-			l.append(path+"/"+file)
+		if  os.path.exists(path):
+			for file in os.listdir(path):
+			    if file.endswith(".fit"):
+				l.append(path+"/"+file)
+		else:
+			print "Path do not exist:",path
 		return l
 
 	def fitStats(self,fit):
@@ -78,8 +92,8 @@ class registrarBase():
 		filter_data=data[flt]
 		return filter_data
 
-	def rankFrames(self):
-		for k,light in enumerate(self.fitFrames['lightsBase']):
+	def rankFrames(self,band):
+		for k,light in enumerate(self.fitFrames['lightsBase'][band]):
 			print "Extracting sources and rank:",light
 			data=self.sex(light)
 			meanFWHM,meanELLIPTICITY=self.getQuality(data)
@@ -99,7 +113,8 @@ class registrarBase():
 		self.rank=np.sort(self.rank,order=['ellipticity','fwhm'],axis=0)
 		if k==0:
 			print "Only one frame. Not rank"
-			self.fitFrames['lightsBase']=light
+			for B in self.bands:
+				self.fitFrames['lights'][B]=self.fitFrames['lightsBase'][band][0]
 			return
 		print "Sorting"
 

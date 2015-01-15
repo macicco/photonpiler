@@ -15,10 +15,11 @@ class raw2fits():
 	This class  generate instrumental bands FITs from RAW DSLR photos
 	'''
 	def __init__(self):
-		cfg=fConfig.fConfig().getSection('RAW')
+		config=fConfig.fConfig()
+		cfg=config.getSection('RAW')
 		self.cfg=cfg
-		self.bands=['Ri','Gi1','Gi2','Bi']
-		self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','u':'u'}
+		self.bands=config.bands
+		self.BandMap=config.BandMap
 		lightRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['lightsdir'])
 		darkRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['darksdir'])
 		flatRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['flatsdir'])
@@ -33,24 +34,25 @@ class raw2fits():
 		cfg=self.cfg
 		frames=self.rawFrames
 		band=self.bands[iband]
+
 		raws=frames['darks']
-		outdir=cfg['fitsdir']+'/'+cfg['darksdir']
+		outdir=self.DIRS[band]['darksdir']
 		darkFits=self.rawtran(raws,band,outdir=outdir,dark=False,flat=False,rotate=False)
 		self.num={'darks':len(darkFits)}
 		self.fitFrames={'darks':darkFits}
 		masterdark=self.MasterDark()
-		masterdark.save(cfg['masterdark']+'.'+band+'.fit')
+		masterdark.save(outdir+'/'+cfg['masterdark']+'.'+band+'.fit')
 
 		raws=frames['flats']
-		outdir=cfg['fitsdir']+'/'+cfg['flatsdir']
+		outdir=self.DIRS[band]['flatsdir']
 		flatFits=self.rawtran(raws,band,outdir=outdir,dark=True,flat=False,rotate=True)
 		self.num['flats']=len(flatFits)
 		self.fitFrames['flats']=flatFits
 		masterflat=self.MasterFlat()
-		masterflat.save(cfg['masterflat']+'.'+band+'.fit')
+		masterflat.save(outdir+'/'+cfg['masterflat']+'.'+band+'.fit')
 
 		raws=frames['lights']
-		outdir=cfg['fitsdir']+'/'+cfg['lightsdir']
+		outdir=self.DIRS[band]['lightsdir']
 		lightFits=self.rawtran(raws,band,outdir=outdir,dark=True,flat=True,rotate=False)
 		self.num['lights']=len(lightFits)
 		self.fitFrames['lights']=lightFits
@@ -59,16 +61,27 @@ class raw2fits():
 
 	def createOutputDirs(self):
 		cfg=self.cfg
-		dirs=[cfg['darksdir'],cfg['flatsdir'],cfg['lightsdir'],cfg['rawfits']]
+		frametypes=['darksdir','flatsdir','lightsdir','rawfits']
+		dirs={}
+		for t in frametypes:
+			dirs[t]=cfg[t]
 		if not os.path.exists(cfg['fitsdir']):
 			os.makedirs(cfg['fitsdir'])
-		dirs=map(lambda x:cfg['fitsdir']+'/'+x,dirs)
-		#print "Creating FITs dirs:",dirs
-		for d in dirs:
-			if not os.path.exists(d):
-				os.makedirs(d)
-			else:
-				print "Dir: ",d," already exist"
+		self.DIRS={}
+		for B in self.bands:
+			if not os.path.exists(cfg['fitsdir']+'/'+B):
+				os.makedirs(cfg['fitsdir']+'/'+B)
+			#print "Creating FITs dirs:",dirs
+			dummy={}
+			for t in frametypes:
+				dd=cfg['fitsdir']+'/'+B+'/'+dirs[t]
+				if not os.path.exists(dd):
+					os.makedirs(dd)
+				else:
+					print "Dir: ",dd," already exist"
+				dummy[t]=dd
+			self.DIRS[B]=dummy
+		print 	self.DIRS
 
 	def searchRawFiles(self,path):
 		l=[]
@@ -111,7 +124,7 @@ class raw2fits():
 				print res
 				'''Copy exif information to fit'''
 				self.exif2fit(raw,outfile)
-				rawfits=cfg['fitsdir']+"/"+cfg['rawfits']+"/"+os.path.basename(raw).replace(cfg['ext'],band+'.fit')
+				rawfits=self.DIRS[band]['rawfits']+"/"+os.path.basename(raw).replace(cfg['ext'],band+'.fit')
 				print "saving raw fits:",rawfits
 				strCmd= 'cp -v '+outfile+ " " + rawfits
 				print strCmd
@@ -123,13 +136,13 @@ class raw2fits():
 					light=light.rotate90()
 					light.save(outfile)
 				if dark:
-					darkfile=cfg['masterdark']+'.'+band+'.fit'
+					darkfile=self.DIRS[band]['darksdir']+'/'+cfg['masterdark']+'.'+band+'.fit'
 					if os.path.exists(darkfile):
 						light=fitsMaths.fitMaths(outfile)
 						light=light.dark(darkfile)
 						light.save(outfile)				
 				if flat:
-					flatfile=cfg['masterflat']+'.'+band+'.fit'
+					flatfile=self.DIRS[band]['darksdir']+'/'+cfg['masterflat']+'.'+band+'.fit'
 					if os.path.exists(flatfile):
 						light=fitsMaths.fitMaths(outfile)
 						light=light.flat(flatfile)

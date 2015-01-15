@@ -10,7 +10,8 @@ class fConfig():
 		configpath=os.path.dirname(binpath)
 		self.cfg = ConfigParser.ConfigParser()
 		self.cfg.read(configpath+"/photonpiler.cfg")
-
+		self.bands=['Ri','Gi1','Gi2','Bi','P']
+		self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','P':'P'}
 
 	def getSection(self,section=''):
 		return dict(self.cfg.items(section))

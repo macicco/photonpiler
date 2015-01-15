@@ -19,11 +19,11 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		numstars=20
 		maxtriangles=numstars*(numstars-1)*(numstars-2)/6
 		dt=np.dtype([('frame',int),('v0',int),('v1',int),('v2',int),('sA',float),('sB',float),('points',np.float32,(3,2))])
-		result=np.zeros((maxtriangles*len(self.lightFits),),dtype=dt)
+		result=np.zeros((maxtriangles*len(self.fitFrames['lights']),),dtype=dt)
 		triInx=0
-		for k,light in enumerate(self.lightFits):
+		for k,light in enumerate(self.fitFrames['lights']):
 			print "Searching triangles on:",light
-			a=np.asarray(self.sex(k))
+			a=np.asarray(self.sex(light))
 			#get only the 20 brighter stars
 			b=a[['NUMBER','MAG_AUTO','X_IMAGE','Y_IMAGE']]
 			c=np.sort(b,order='MAG_AUTO')
@@ -68,7 +68,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 						result[triInx]['sB']=sB
 
 						triInx=triInx+1
-		print "Triangles real/theory",triInx,maxtriangles*len(self.lightFits)
+		print "Triangles real/theory",triInx,maxtriangles*len(self.fitFrames['lights'])
 		self.result=result
 
 	def match(self):
@@ -78,7 +78,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		matchedTriangles=np.zeros((1,),dtype=dt)
 		matchedBuffer=np.zeros((1,),dtype=dt)
 		matchCount=0
-		for k,light in enumerate(self.lightFits):
+		for k,light in enumerate(self.fitFrames['lights']):
 			if k==0:
 				frame0=np.sort(result[(result['frame']==0)],order='sA')
 				continue
@@ -116,7 +116,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 	def homografy(self):
 		matchedTriangles=self.matchedTriangles
 		homo={}
-		for k,light in enumerate(self.lightFits):
+		for k,light in enumerate(self.fitFrames['lights']):
 			if k==0:
 				continue
 			matchedTri=np.sort(matchedTriangles[(matchedTriangles['frame']==k)])
@@ -147,14 +147,13 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			print
 		self.homo=homo
 
-	def stack(self,combine='median'):
-		band=self.actualBand
+	def stack(self,band,combine='median'):
 		xdeltaMax=0
 		xdeltaMin=0
 		ydeltaMax=0
 		ydeltaMin=0
 		fitsList=[]
-		for k,light in enumerate(self.lightFits):
+		for k,light in enumerate(self.fitFrames['lights']):
 			if k==0:
 				fitsList.append(light)
 				continue	
@@ -168,8 +167,9 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			shiftedlight=light.replace('IMG','_IMG')
 			frame.save(shiftedlight)
 			fitsList.append(shiftedlight)
-
-		outfile=self.outdir+"/output."+band+".fit"
+		if not os.path.exists(self.cfg['resultdir']):
+			os.makedirs(self.cfg['resultdir'])
+		outfile=self.cfg['resultdir']+"/output."+band+".fit"
 		Master=fitsMaths.combineFits(fitsList,combine=combine)
 		Master.save(outfile)
 		return outfile
@@ -188,18 +188,18 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		print "BASE BAND:",baseband
 		print "Other bands:",bands
 		if self.num['lightsBase']>1:
-			self.rankFrames()
+			self.rankFrames(self.BaseBand)
 			self.getTriangles()
 			self.match()
 			self.homografy()
-		filename=self.stack(combine=combine)
+		filename=self.stack(baseband,combine=combine)
 		outfiles={baseband:filename}
 		for B in bands:
-			filename=self.stack(combine=combine)
+			filename=self.stack(B,combine=combine)
 			outfiles[B]=filename
 		'''combine Gi1 and Gi2 '''
 		Gi=fitsMaths.combineFits((outfiles['Gi1'],outfiles['Gi2']),combine='median')
-		filename=self.outdir+"/output.Gi.fit"
+		filename=self.cfg['resultdir']+"/output.Gi.fit"
 		Gi.save(filename)
 		outfiles.pop("Gi1", None)
 		outfiles.pop("Gi2", None)
@@ -207,20 +207,19 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		return outfiles
 
 	def doLuminance(self,combine='median'):
-		self.BaseBand='u'
+		self.BaseBand='P'
 		try:
 			del self.lightFitsBase
 		except:
 			pass
 
 		print "Luminance band:",self.BaseBand
-		self.init(self.BaseBand)
-		if self.NumLights>1:
-			self.rankFrames()
+		if self.num['lightsBase']>1:
+			self.rankFrames(self.BaseBand)
 			self.getTriangles()
 			self.match()
 			self.homografy()
-		filename=self.stack(combine=combine)
+		filename=self.stack(self.BaseBand,combine=combine)
 		outfiles={self.BaseBand:filename}
 		return outfiles
 
@@ -230,13 +229,12 @@ if __name__ == '__main__':
 
 	'''
 	co=registrarTriangle()
-	RGBfiles=co.doRGB(combine='max')
-	exit(0)
+#	RGBfiles=co.doRGB(combine='max')
 #	RGBfiles={'Bi': './OUTPUT/output.Bi.fit', 'Gi': './OUTPUT/output.Ri.fit', 'Ri': './OUTPUT/output.Gi.fit'}
-	fBaseComposer.RGBcomposer(RGBfiles,gamma=1)
+#	fBaseComposer.RGBcomposer(RGBfiles,gamma=1)
 	Lfiles=co.doLuminance(combine='median')
 #	Lfiles={'u':'./OUTPUT/output.u.fit'}
-	fBaseComposer.RGBcomposer(Lfiles,gamma=1)
+#	fBaseComposer.RGBcomposer(Lfiles,gamma=1)
 
 
 
