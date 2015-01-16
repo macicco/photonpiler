@@ -25,11 +25,10 @@ class registrarBase():
 		lightFits=self.searchDirs()
 		self.fitFrames={'lightsBase':lightFits}
 		self.num={'lightsBase':len(lightFits)}
-		print self.fitFrames
-		self.nsigma=1.5
+		self.nsigma=1.4
 		self.rankdt=np.dtype([('frame',int),('framename',object),('rank',int),\
 				('register',bool),('fwhm',float),('ellipticity',float)])
-		self.rank=np.zeros((1,),dtype=self.rankdt)
+
 
 	def searchDirs(self):
 		cfg=self.cfg
@@ -93,6 +92,7 @@ class registrarBase():
 		return filter_data
 
 	def rankFrames(self,band):
+		self.rank=np.zeros((1,),dtype=self.rankdt)
 		for k,light in enumerate(self.fitFrames['lightsBase'][band]):
 			print "Extracting sources and rank:",light
 			data=self.sex(light)

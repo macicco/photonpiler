@@ -40,16 +40,18 @@ class raw2fits():
 		darkFits=self.rawtran(raws,band,outdir=outdir,dark=False,flat=False,rotate=False)
 		self.num={'darks':len(darkFits)}
 		self.fitFrames={'darks':darkFits}
-		masterdark=self.MasterDark()
-		masterdark.save(outdir+'/'+cfg['masterdark']+'.'+band+'.fit')
+		if self.num['darks']!=0:
+			masterdark=self.MasterDark()
+			masterdark.save(outdir+'/'+cfg['masterdark']+'.'+band+'.fit')
 
 		raws=frames['flats']
 		outdir=self.DIRS[band]['flatsdir']
-		flatFits=self.rawtran(raws,band,outdir=outdir,dark=True,flat=False,rotate=True)
+		flatFits=self.rawtran(raws,band,outdir=outdir,dark=True,flat=False,rotate=False)
 		self.num['flats']=len(flatFits)
 		self.fitFrames['flats']=flatFits
-		masterflat=self.MasterFlat()
-		masterflat.save(outdir+'/'+cfg['masterflat']+'.'+band+'.fit')
+		if self.num['flats']!=0:
+			masterflat=self.MasterFlat()
+			masterflat.save(outdir+'/'+cfg['masterflat']+'.'+band+'.fit')
 
 		raws=frames['lights']
 		outdir=self.DIRS[band]['lightsdir']

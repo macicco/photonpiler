@@ -153,7 +153,8 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		ydeltaMax=0
 		ydeltaMin=0
 		fitsList=[]
-		for k,light in enumerate(self.fitFrames['lights']):
+		lightlist=map(lambda x:x.replace(self.BaseBand,band),self.fitFrames['lights'])
+		for k,light in enumerate(lightlist):
 			if k==0:
 				fitsList.append(light)
 				continue	
@@ -164,7 +165,9 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			y_=homo[k]['y']
 			print "Shifting:",x_,y_
 			frame.hdulist[0].data=shift(frame.hdulist[0].data,(-y_,-x_))
-			shiftedlight=light.replace('IMG','_IMG')
+			if not os.path.exists(self.cfg['workdir']):
+				os.makedirs(self.cfg['workdir'])
+			shiftedlight=self.cfg['workdir']+'/'+os.path.basename(light).replace('IMG','_IMG')
 			frame.save(shiftedlight)
 			fitsList.append(shiftedlight)
 		if not os.path.exists(self.cfg['resultdir']):
@@ -180,13 +183,10 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 	def doRGB(self,combine='median',baseband='Gi1'):
 		bands=['Ri','Gi1','Gi2','Bi']
 		self.BaseBand=baseband
-		try:
-			del self.lightFitsBase
-		except:
-			pass
+
 		bands.remove(baseband)
 		print "BASE BAND:",baseband
-		print "Other bands:",bands
+
 		if self.num['lightsBase']>1:
 			self.rankFrames(self.BaseBand)
 			self.getTriangles()
@@ -194,7 +194,9 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			self.homografy()
 		filename=self.stack(baseband,combine=combine)
 		outfiles={baseband:filename}
+		print "Other bands:",bands
 		for B in bands:
+			print "Band:",B
 			filename=self.stack(B,combine=combine)
 			outfiles[B]=filename
 		'''combine Gi1 and Gi2 '''
@@ -208,10 +210,6 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 
 	def doLuminance(self,combine='median'):
 		self.BaseBand='P'
-		try:
-			del self.lightFitsBase
-		except:
-			pass
 
 		print "Luminance band:",self.BaseBand
 		if self.num['lightsBase']>1:
@@ -229,12 +227,8 @@ if __name__ == '__main__':
 
 	'''
 	co=registrarTriangle()
-#	RGBfiles=co.doRGB(combine='max')
-#	RGBfiles={'Bi': './OUTPUT/output.Bi.fit', 'Gi': './OUTPUT/output.Ri.fit', 'Ri': './OUTPUT/output.Gi.fit'}
-#	fBaseComposer.RGBcomposer(RGBfiles,gamma=1)
-	Lfiles=co.doLuminance(combine='median')
-#	Lfiles={'u':'./OUTPUT/output.u.fit'}
-#	fBaseComposer.RGBcomposer(Lfiles,gamma=1)
+	RGBfiles=co.doRGB(combine='max')
+	Lfiles=co.doLuminance(combine='max')
 
 
 

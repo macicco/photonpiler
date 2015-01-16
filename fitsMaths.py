@@ -90,14 +90,13 @@ def SumFits(fits):
 	return combineFits(fits,op='sum')
 
 def combineFits(fits,combine='median'):
-	print fits
+	print "Combine:",fits
 	op_dict={'median':np.median,'mean':np.mean,'max':np.max,'min':np.min,'sum':np.sum}
 	for i,fit in enumerate(fits):
 		if i==0:
 			Master=fitMaths(fit)
 			(xsize,ysize)=Master.hdulist[0].data.shape
 			print "Combine:",combine
-			print fits
 			stackedData=Master.hdulist[0].data.reshape((-1))
 			header=Master.hdulist[0].header
 			print "FRAME:",i," mean/std:",stackedData.mean(),stackedData.std() #,\
