@@ -113,7 +113,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		self.matchedTriangles= matchedTriangles
 		return matchedTriangles
 
-	def homografy(self):
+	def homografy(self,cfaframe=False):
 		matchedTriangles=self.matchedTriangles
 		homo={}
 		for k,light in enumerate(self.fitFrames['lights']):
@@ -142,7 +142,10 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 				x=0
 			if np.isnan(y):
 				y=0
-			homo[k]={'x':x,'y':y}
+			if cfaframe:
+				homo[k]={'x':2*np.round(x/2.),'y':2*np.round(y/2.)}
+			else:
+				homo[k]={'x':x,'y':y}
 			print homo[k]
 			print
 		self.homo=homo
@@ -216,7 +219,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			self.rankFrames(self.BaseBand)
 			self.getTriangles()
 			self.match()
-			self.homografy()
+			self.homografy(cfaframe=True)
 		filename=self.stack(self.BaseBand,combine=combine)
 		outfiles={self.BaseBand:filename}
 		return outfiles
@@ -227,8 +230,8 @@ if __name__ == '__main__':
 
 	'''
 	co=registrarTriangle()
-	RGBfiles=co.doRGB(combine='max')
-	Lfiles=co.doLuminance(combine='max')
+	RGBfiles=co.doRGB(combine='median')
+	Lfiles=co.doLuminance(combine='median')
 
 
 

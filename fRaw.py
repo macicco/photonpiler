@@ -103,7 +103,10 @@ class raw2fits():
 		print "updating FIT HEADER",fit
 		with 	pyfits.open(fit,mode='update') as hdulist:
 			header=hdulist[0].header
-			header['CCD-TEMP']=float(exiftags['CameraTemperature'].replace(' ','').replace('C',''))
+			try:
+				header['CCD-TEMP']=float(exiftags['CameraTemperature'].replace(' ','').replace('C',''))
+			except:
+				print "Not CCD temp tag"
 			header['COMMENT']="ORIGINAL EXIF DATA BEGIN:"
 			for exifkey in exiftags.keys():
 				header['COMMENT']="EXIF:: "+exifkey+":"+str(exiftags[exifkey])

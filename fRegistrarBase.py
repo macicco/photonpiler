@@ -25,7 +25,7 @@ class registrarBase():
 		lightFits=self.searchDirs()
 		self.fitFrames={'lightsBase':lightFits}
 		self.num={'lightsBase':len(lightFits)}
-		self.nsigma=1.4
+		self.nsigma=float(cfg['sigma'])
 		self.rankdt=np.dtype([('frame',int),('framename',object),('rank',int),\
 				('register',bool),('fwhm',float),('ellipticity',float)])
 
@@ -114,7 +114,7 @@ class registrarBase():
 		if k==0:
 			print "Only one frame. Not rank"
 			for B in self.bands:
-				self.fitFrames['lights'][B]=self.fitFrames['lightsBase'][band][0]
+				self.fitFrames['lights']=self.fitFrames['lightsBase'][band]
 			return
 		print "Sorting"
 
@@ -127,9 +127,9 @@ class registrarBase():
 		maxEllip=ellipticity_filter.mean()+ellipticity_filter.std()*self.nsigma
 		flt=(selected['ellipticity']<=maxEllip )
 		selected=selected[flt]
-		print self.rank
+		#print self.rank
 		print maxEllip
-		print selected
+		print "Select:",len(selected),"of:",len(self.fitFrames['lightsBase'][band])
 		selected_=selected['framename']
 		dummy=[]
 		for s in selected_:

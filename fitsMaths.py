@@ -62,7 +62,10 @@ class fitMaths():
 
 		new=fitMaths(self.fitsname)
 		newExp= float(new.hdulist[0].header['EXPTIME'])
-		print "TEMP FRAME:",new.hdulist[0].header['CCD-TEMP'],"TEMP DARK",dark[0].header['CCD-TEMP']
+		try:
+			print "TEMP FRAME:",new.hdulist[0].header['CCD-TEMP'],"TEMP DARK",dark[0].header['CCD-TEMP']
+		except:
+			pass
 		factor=newExp/darkExp
 		print 'Appliying DARK newExp,darkExp,factor:',newExp,darkExp,factor
 		other=dark[0].data
