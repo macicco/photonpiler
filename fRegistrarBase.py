@@ -18,13 +18,13 @@ class registrarBase():
 		config=fConfig.fConfig()
 		cfg=config.getSection('REGISTRAR')
 		self.cfg=cfg
-		self.bands=config.bands
 		self.BandMap=config.BandMap
 		self.scriptpath, self.scriptname = os.path.split(os.path.abspath(__file__))
 		print "Script path:",self.scriptpath
 		lightFits=self.searchDirs()
 		self.fitFrames={'lightsBase':lightFits}
-		self.num={'lightsBase':len(lightFits)}
+		if not os.path.exists(self.cfg['workdir']):
+			os.makedirs(self.cfg['workdir'])
 		self.nsigma=float(cfg['sigma'])
 		self.rankdt=np.dtype([('frame',int),('framename',object),('rank',int),\
 				('register',bool),('fwhm',float),('ellipticity',float)])
@@ -33,7 +33,7 @@ class registrarBase():
 	def searchDirs(self):
 		cfg=self.cfg
 		lightFits={}
-		for B in self.bands:
+		for B in ['Ri1','Gi','Gi2','Bi','P']:
 			path=cfg['fitsdir']+'/'+B+'/'+cfg['lightsdir']
 			lightFits[B]=self.searchFitFiles(path)
 		return lightFits
@@ -61,7 +61,8 @@ class registrarBase():
 			print ISO,exp,Temp,mini,maxi,mean,std
 
 	def sex(self,fit,extra=''):
-		name=fit.replace('.fit','.cat')
+		name=self.cfg['workdir']+'/'+os.path.basename(fit).replace('.fit','.cat')
+		
 		if not os.path.exists(name):
 			#outfile=self.outdir+"/"+os.path.basename(fit).replace('fit','cat')
 			sexStr="sex "+fit+" -c "+self.scriptpath+"/registra.sex -CATALOG_NAME "+name+ \
@@ -97,7 +98,7 @@ class registrarBase():
 			print "Extracting sources and rank:",light
 			data=self.sex(light)
 			meanFWHM,meanELLIPTICITY=self.getQuality(data)
-			print meanFWHM,meanELLIPTICITY
+			print "FWHM,Ellip",meanFWHM,meanELLIPTICITY
 			rank=np.zeros((1,),dtype=self.rankdt)
 			if len(self.rank)==1 and self.rank['fwhm']==0:
 				self.rank['frame']=k
@@ -111,10 +112,11 @@ class registrarBase():
 				rank['ellipticity']=meanELLIPTICITY
 				self.rank=np.vstack((self.rank,rank))
 		self.rank=np.sort(self.rank,order=['ellipticity','fwhm'],axis=0)
+		self.fitFrames['lights']={}
 		if k==0:
 			print "Only one frame. Not rank"
 			for B in self.bands:
-				self.fitFrames['lights']=self.fitFrames['lightsBase'][band]
+				self.fitFrames['lights'][band]=self.fitFrames['lightsBase'][band]
 			return
 		print "Sorting"
 
@@ -134,7 +136,7 @@ class registrarBase():
 		dummy=[]
 		for s in selected_:
 			dummy.append(s)
-		self.fitFrames['lights']=dummy
+		self.fitFrames['lights'][band]=dummy
 
 
 

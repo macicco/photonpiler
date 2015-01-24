@@ -18,14 +18,17 @@ class raw2fits():
 		config=fConfig.fConfig()
 		cfg=config.getSection('RAW')
 		self.cfg=cfg
-		self.bands=config.bands
 		self.BandMap=config.BandMap
 		lightRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['lightsdir'])
 		darkRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['darksdir'])
 		flatRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['flatsdir'])
 		self.rawFrames={'lights':lightRaws,'darks':darkRaws,'flats':flatRaws}
 
+		self.bands=cfg['bands'].split(',')
+
 		self.createOutputDirs()
+
+		print "BANDS:",self.bands
 		for i,B in enumerate(self.bands):
 			self.doBand(i)
 
@@ -147,7 +150,7 @@ class raw2fits():
 						light=light.dark(darkfile)
 						light.save(outfile)				
 				if flat:
-					flatfile=self.DIRS[band]['darksdir']+'/'+cfg['masterflat']+'.'+band+'.fit'
+					flatfile=self.DIRS[band]['flatsdir']+'/'+cfg['masterflat']+'.'+band+'.fit'
 					if os.path.exists(flatfile):
 						light=fitsMaths.fitMaths(outfile)
 						light=light.flat(flatfile)

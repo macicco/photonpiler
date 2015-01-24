@@ -7,7 +7,7 @@ from scipy.ndimage.interpolation import shift
 
 import fitsMaths
 import fRegistrarBase
-
+import demosaic
 
 '''
 Triangle registration
@@ -19,9 +19,9 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		numstars=20
 		maxtriangles=numstars*(numstars-1)*(numstars-2)/6
 		dt=np.dtype([('frame',int),('v0',int),('v1',int),('v2',int),('sA',float),('sB',float),('points',np.float32,(3,2))])
-		result=np.zeros((maxtriangles*len(self.fitFrames['lights']),),dtype=dt)
+		result=np.zeros((maxtriangles*len(self.fitFrames['lights'][self.BaseBand]),),dtype=dt)
 		triInx=0
-		for k,light in enumerate(self.fitFrames['lights']):
+		for k,light in enumerate(self.fitFrames['lights'][self.BaseBand]):
 			print "Searching triangles on:",light
 			a=np.asarray(self.sex(light))
 			#get only the 20 brighter stars
@@ -68,7 +68,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 						result[triInx]['sB']=sB
 
 						triInx=triInx+1
-		print "Triangles real/theory",triInx,maxtriangles*len(self.fitFrames['lights'])
+		print "Triangles real/theory",triInx,maxtriangles*len(self.fitFrames['lights'][self.BaseBand])
 		self.result=result
 
 	def match(self):
@@ -78,7 +78,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		matchedTriangles=np.zeros((1,),dtype=dt)
 		matchedBuffer=np.zeros((1,),dtype=dt)
 		matchCount=0
-		for k,light in enumerate(self.fitFrames['lights']):
+		for k,light in enumerate(self.fitFrames['lights'][self.BaseBand]):
 			if k==0:
 				frame0=np.sort(result[(result['frame']==0)],order='sA')
 				continue
@@ -113,10 +113,10 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		self.matchedTriangles= matchedTriangles
 		return matchedTriangles
 
-	def homografy(self,cfaframe=False):
+	def homografy(self):
 		matchedTriangles=self.matchedTriangles
 		homo={}
-		for k,light in enumerate(self.fitFrames['lights']):
+		for k,light in enumerate(self.fitFrames['lights'][self.BaseBand]):
 			if k==0:
 				continue
 			matchedTri=np.sort(matchedTriangles[(matchedTriangles['frame']==k)])
@@ -142,21 +142,18 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 				x=0
 			if np.isnan(y):
 				y=0
-			if cfaframe:
-				homo[k]={'x':2*np.round(x/2.),'y':2*np.round(y/2.)}
-			else:
-				homo[k]={'x':x,'y':y}
+			homo[k]={'x':x,'y':y}
 			print homo[k]
 			print
 		self.homo=homo
 
-	def stack(self,band,combine='median'):
+	def stack(self,band,combine='median',cfaframe=False):
 		xdeltaMax=0
 		xdeltaMin=0
 		ydeltaMax=0
 		ydeltaMin=0
 		fitsList=[]
-		lightlist=map(lambda x:x.replace(self.BaseBand,band),self.fitFrames['lights'])
+		lightlist=self.fitFrames['lights'][band]
 		for k,light in enumerate(lightlist):
 			if k==0:
 				fitsList.append(light)
@@ -164,18 +161,22 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			print "Frame",light,k	
 			homo=self.homo
 			frame=fitsMaths.fitMaths(light)
-			x_=homo[k]['x']	
-			y_=homo[k]['y']
+			x=homo[k]['x']	
+			y=homo[k]['y']
+			if cfaframe:
+				x_=2*np.round(x/2.)
+				y_=2*np.round(y/2.)
+			else:
+				x_=x
+				y_=y
 			print "Shifting:",x_,y_
 			frame.hdulist[0].data=shift(frame.hdulist[0].data,(-y_,-x_))
-			if not os.path.exists(self.cfg['workdir']):
-				os.makedirs(self.cfg['workdir'])
-			shiftedlight=self.cfg['workdir']+'/'+os.path.basename(light).replace('IMG','_IMG')
+			shiftedlight=self.cfg['workdir']+'/'+band+'/'+os.path.basename(light).replace('IMG','_IMG')
 			frame.save(shiftedlight)
 			fitsList.append(shiftedlight)
 		if not os.path.exists(self.cfg['resultdir']):
 			os.makedirs(self.cfg['resultdir'])
-		outfile=self.cfg['resultdir']+"/output."+band+".fit"
+		outfile=self.cfg['resultdir']+"/staked."+band+".fit"
 		Master=fitsMaths.combineFits(fitsList,combine=combine)
 		Master.save(outfile)
 		return outfile
@@ -190,11 +191,13 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		bands.remove(baseband)
 		print "BASE BAND:",baseband
 
-		if self.num['lightsBase']>1:
+		if len(self.fitFrames['lightsBase'][self.BaseBand])>1:
 			self.rankFrames(self.BaseBand)
 			self.getTriangles()
 			self.match()
 			self.homografy()
+		else:
+			self.fitFrames['lights']=self.fitFrames['lightsBase'][self.BaseBand]
 		filename=self.stack(baseband,combine=combine)
 		outfiles={baseband:filename}
 		print "Other bands:",bands
@@ -215,14 +218,55 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		self.BaseBand='P'
 
 		print "Luminance band:",self.BaseBand
-		if self.num['lightsBase']>1:
+		print self.fitFrames['lightsBase'][self.BaseBand]
+		self.fitFrames['lights']={}
+		if len(self.fitFrames['lightsBase'][self.BaseBand])>1:
 			self.rankFrames(self.BaseBand)
 			self.getTriangles()
 			self.match()
-			self.homografy(cfaframe=True)
-		filename=self.stack(self.BaseBand,combine=combine)
+			self.homografy()
+		else:
+			print "Single frame"
+			self.fitFrames['lights'][self.BaseBand]=self.fitFrames['lightsBase'][self.BaseBand]
+		print self.fitFrames['lights']
+		destdir=self.cfg['workdir']+'/'+self.BaseBand
+		if not os.path.exists(destdir):
+			os.makedirs(destdir)
+		filename=self.stack(self.BaseBand,combine=combine,cfaframe=True)
 		outfiles={self.BaseBand:filename}
+
+		bands=['R','G','B']
+		print "Other bands:",bands
+		'''Creating R,G,B bands fits from CFA '''
+		for i,B in enumerate(bands):
+			self.fitFrames['lights'][B]=[]
+		for f,light in enumerate(self.fitFrames['lights'][self.BaseBand]):
+			print "Demosaic:",light
+			frame=fitsMaths.fitMaths(light)
+			cfa=frame.hdulist[0].data/frame.hdulist[0].data.max()
+			mosaicStack=demosaic.demosaic(cfa,pattern='rggb',method='bilinear')
+			for i,B in enumerate(bands):
+				print "Band:",B
+				destdir=self.cfg['workdir']+'/'+B
+				if not os.path.exists(destdir):
+					os.makedirs(destdir)
+				lightRGB=destdir+'/'+os.path.basename(light).replace(self.BaseBand,B)
+				print lightRGB
+				frame.hdulist[0].data=mosaicStack[:,:,i]
+				frame.save(lightRGB)
+				self.fitFrames['lights'][B].append(lightRGB)
+				
+		######HASTA AQUI
+		print self.fitFrames['lights']
+		for B in bands:
+			print "Band:",B
+			filename=self.stack(B,combine=combine)
+			outfiles[B]=filename
+
 		return outfiles
+
+
+
 
 
 if __name__ == '__main__':
@@ -230,7 +274,6 @@ if __name__ == '__main__':
 
 	'''
 	co=registrarTriangle()
-	RGBfiles=co.doRGB(combine='median')
 	Lfiles=co.doLuminance(combine='median')
 
 

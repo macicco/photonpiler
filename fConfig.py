@@ -10,7 +10,6 @@ class fConfig():
 		configpath=os.path.dirname(binpath)
 		self.cfg = ConfigParser.ConfigParser()
 		self.cfg.read(configpath+"/photonpiler.cfg")
-		self.bands=['Ri','Gi1','Gi2','Bi','P']
 		#Canon 600D
 		self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','P':'P'}
 		#PLAIN
@@ -22,14 +21,7 @@ class fConfig():
 		return dict(self.cfg.items(section))
 
 	def createDirs():
-
-		if not os.path.exists(self.general['base_dir']):
-			os.makedirs(self.general['base_dir'])	
-
-		if not os.path.isfile(self.general['base_dir']+'/index.html'):
-			cmd="cp -av "+configpath+"/html/index.html "+self.general['base_dir']
-			res=commands.getoutput(cmd)
-			print res
+		pass
 
 
 	def chkConfig(self):
@@ -38,6 +30,7 @@ class fConfig():
 			print "================ "+section+" ================"
 			for item in self.cfg.items(section):
 				print item
+
 
 if __name__ == '__main__':
 	cfg=fConfig()

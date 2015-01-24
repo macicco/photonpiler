@@ -13,7 +13,14 @@ import fitsMaths
 import fConfig
 import demosaic
 
-class RGBcomposer():
+'''
+Class for processing fits channels to obtain color imagen.
+The input files could be one of this:
+	- Independen R,G,B fits
+	- Aligned CFA
+'''
+
+class ColorMixer():
 
 	def __init__(self,RGBdict,gamma=2.2):
 		self.Daylight_multipliers={'Ri':2.129439,'Gi1':0.937830,'Gi2':0.937830,'Bi':1.096957,'Gi':0.937830,'P':1.0}
@@ -26,12 +33,7 @@ class RGBcomposer():
 		#self.Daylight_multipliers={'Ri':2.153,'Gi1':1.024,'Gi2':1.024,'Bi':1.594,'Gi':1.024,'P':1.0}
 		self.gamma=gamma
 		self.RGBdict=RGBdict
-		if len(RGBdict)==1:
-			self.luminance()
-			self.stiffP()
-		else:
-			self.rgb()
-			self.stiffRGB()
+
 
 	def setRGBlevels(self):
 		bands=self.RGBdict.keys()
@@ -96,7 +98,7 @@ class RGBcomposer():
 
 		return mosaicStack
 
-	def toXYZ(self):
+	def CFAtoXYZ(self):
 		stk=self.demosaic()
 		w,h,c=stk.shape
 		pixels=w*h
@@ -130,7 +132,45 @@ class RGBcomposer():
 			print res
 
 		if True:
-			self.stiffXYZ()
+			cmdStr='stiff '
+			for band in ('X','Y','Z'):
+				cmdStr=cmdStr+'bayer.'+band+'.fit'+' '
+			cmdStr=cmdStr+'-BITS_PER_CHANNEL 16 -GAMMA '+str(self.gamma)+' -OUTFILE_NAME stiff.bayer.XYZ.tif'
+			print cmdStr
+			res=commands.getoutput(cmdStr)
+		print res
+
+	def RGBtoXYZ(self):
+		for k,B in enumerate(['R','G','B']):
+			hdulist=pyfits.open(self.RGBdict[B])
+			b=np.array(hdulist[0].data)
+			w,h=b.shape
+			pixels=w*h
+			b=b.reshape(pixels)
+			if k==0:
+				rgb=b
+				print rgb.shape,self.ForwardMatrix1.shape
+			else:
+				rgb=np.dstack((rgb,b))
+				print rgb.shape,self.ForwardMatrix1.shape
+
+		XYZ=np.dot(rgb,self.ForwardMatrix1)
+		print "XYZ shape:",XYZ.shape
+		XYZ=XYZ.reshape(w,h,3)
+		print "XYZ shape:",XYZ.shape
+		bands=['X','Y','Z']
+		for i,name in enumerate(map(lambda x:'stacked.'+x+'.fit',bands)):
+			tifFile=name.replace('.fit','.tif')
+			print "Writing:",name
+			hdulist[0].data=XYZ[:,:,i]
+			hdulist.writeto(name,clobber=True)
+			data=lingray(XYZ[:,:,i],a=0.,b=1.,bits=16).astype(np.uint16)
+			im = Image.fromarray(data,'I;16')
+			Li = im.transpose(Image.FLIP_TOP_BOTTOM)
+			print "Generating tif:",tifFile
+			Li.save(tifFile,"TIFF")
+
+
 
 
 	def rgb(self):
@@ -140,7 +180,7 @@ class RGBcomposer():
 		bands=self.RGBdict.keys()
 		print bands
 		im={}
-		for k,B in enumerate(['Ri','Gi','Bi']):
+		for k,B in enumerate(['R','G','B']):
 			print B
 			hdulist=pyfits.open(self.RGBdict[B])
 			data=hdulist[0].data-hdulist[0].data.min()
@@ -155,27 +195,46 @@ class RGBcomposer():
 			self.luminance(B)
 			#im[B].save(outfile+B,"PNG")
 
-		if 'Gi' in self.RGBdict.keys():
+		if 'G' in self.RGBdict.keys():
 
 			cmdStr='convert '
-			for band in ('Ri','Gi','Bi'):
+			for band in ('R','G','B'):
 				cmdStr=cmdStr+self.RGBdict[band].replace('fit','tif')+' '
 			cmdStr=cmdStr+' -set colorspace RGB -combine -set colorspace sRGB output.RGB.tiff'
 			print cmdStr
 			res=commands.getoutput(cmdStr)
 			print res
 
-			imRGB = Image.merge("RGB", (im['Ri'],im['Gi'], im['Bi']))
+			imRGB = Image.merge("RGB", (im['R'],im['G'], im['B']))
 			Li = imRGB.transpose(Image.FLIP_TOP_BOTTOM)
 			print "Generating png:",outfile
 			Li.save(outfile,"PNG")
 		else:
-			print "Not Gi fits"
+			print "Not G fits"
 
+	def tifRGB(self):
+		bands=['R','G','B']
+		cmdStr='convert '
+		for band in bands:
+			cmdStr=cmdStr+'stacked.'+band+'.tif'+' '
+		cmdStr=cmdStr+' -set colorspace RGB -combine -set colorspace RGB stacked.XYZ.tiff'
+		print cmdStr
+		res=commands.getoutput(cmdStr)
+		print res
+
+	def tifXYZ(self):
+		bands=['X','Y','Z']
+		cmdStr='convert '
+		for band in bands:
+			cmdStr=cmdStr+'stacked.'+band+'.tif'+' '
+		cmdStr=cmdStr+' -set colorspace RGB -combine -set colorspace RGB stacked.XYZ.tiff'
+		print cmdStr
+		res=commands.getoutput(cmdStr)
+		print res
 
 	def stiffRGB(self):
 		cmdStr='stiff '
-		for band in ('Ri','Gi','Bi'):
+		for band in ('R','G','B'):
 			cmdStr=cmdStr+self.RGBdict[band]+' '
 		cmdStr=cmdStr+'-BITS_PER_CHANNEL 16 -GAMMA '+str(self.gamma)+' -OUTFILE_NAME stiff.RGB.tif'
 		print cmdStr
@@ -185,7 +244,7 @@ class RGBcomposer():
 	def stiffXYZ(self):
 		cmdStr='stiff '
 		for band in ('X','Y','Z'):
-			cmdStr=cmdStr+'bayer.'+band+'.fit'+' '
+			cmdStr=cmdStr+'stacked.'+band+'.fit'+' '
 		cmdStr=cmdStr+'-BITS_PER_CHANNEL 16 -GAMMA '+str(self.gamma)+' -OUTFILE_NAME stiff.XYZ.tif'
 		print cmdStr
 		res=commands.getoutput(cmdStr)
@@ -240,10 +299,14 @@ if __name__ == '__main__':
 	'''
 
 	'''
-	RGBfiles={'Bi': './OUTPUT/result/output.Bi.fit', 'Gi': './OUTPUT/result/output.Gi.fit', 'Ri': './OUTPUT/result/output.Ri.fit'}
-	RGBcomposer(RGBfiles,gamma=2.2)
-	RGBfiles={'P': './OUTPUT/result/output.P.fit'}
-	l=RGBcomposer(RGBfiles,gamma=2.2)
-	l.toXYZ()
+	RGBfiles={'B': './OUTPUT/result/staked.B.fit', 'G': './OUTPUT/result/staked.G.fit', 'R': './OUTPUT/result/staked.R.fit','P': './OUTPUT/result/staked.P.fit'}
+	l=ColorMixer(RGBfiles,gamma=2.2)
+	l.CFAtoXYZ()
+	l.RGBtoXYZ()
+	l.stiffRGB()
+	l.stiffXYZ()
+#	RGBfiles={'P': './OUTPUT/result/output.P.fit'}
+#	l=RGBcomposer(RGBfiles,gamma=2.2)
+#	l.CFAtoXYZ()
 #	RGBcomposer(RGBfiles,gamma=1)
 
