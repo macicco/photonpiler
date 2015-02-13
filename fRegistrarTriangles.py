@@ -214,7 +214,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		outfiles['Gi']=filename
 		return outfiles
 
-	def doLuminance(self,combine='median'):
+	def doCFA(self,combine='median'):
 		self.BaseBand='P'
 
 		print "Luminance band:",self.BaseBand
@@ -274,7 +274,7 @@ if __name__ == '__main__':
 
 	'''
 	co=registrarTriangle()
-	Lfiles=co.doLuminance(combine='median')
+	Lfiles=co.doCFA(combine='median')
 
 
 

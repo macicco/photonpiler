@@ -17,22 +17,47 @@ import demosaic
 Class for processing fits channels to obtain color imagen.
 The input files could be one of this:
 	- Independen R,G,B fits
-	- Aligned CFA
+	- Aligned CFA. 'P' Channel
 '''
 
 class ColorMixer():
 
-	def __init__(self,RGBdict,gamma=2.2):
+	def __init__(self,inputDict,gamma=2.2):
 		self.Daylight_multipliers={'Ri':2.129439,'Gi1':0.937830,'Gi2':0.937830,'Bi':1.096957,'Gi':0.937830,'P':1.0}
 		self.ForwardMatrix1=np.array([[0.7978, 0.1352, 0.0313],[0.2880,0.7119, 0.0001], [0, 0, 0.8251]])
-		print self.ForwardMatrix1
-		#self.Daylight_multipliers={'Ri':2.500482,'Gi1':1.,'Gi2':1.,'Bi':1.401827,'Gi':1,'u':1.0}
-		#self.Daylight_multipliers={'Ri':1.,'Gi1':1.,'Gi2':1.,'Bi':1.,'Gi':1,'P':1.0}
-		#RawMeasuredRGGB:125473 256548 256008 160953
-		#WB RGGB Levels Daylight         :2153 1024 1024 1594
-		#self.Daylight_multipliers={'Ri':2.153,'Gi1':1.024,'Gi2':1.024,'Bi':1.594,'Gi':1.024,'P':1.0}
+		#print self.ForwardMatrix1
 		self.gamma=gamma
-		self.RGBdict=RGBdict
+		self.setNames(inputDict)
+
+
+	def setNames(self,inputDict):
+		self.inputDict=inputDict
+		self.rgbBands=('R','G','B')
+		self.xyzBands=('X','Y','Z')
+		self.cfaBand=('P')
+		if all (k in inputDict for k in self.rgbBands):
+			self.rgb=True
+			self.rgbInputDict={k: inputDict[k] for k in self.rgbBands}
+			dirname=os.path.dirname(inputDict[self.rgbBands[0]])
+			self.rgbFits={k: dirname+'/rgb.'+k+'.fit' for k in self.xyzBands}
+			for B in self.rgbBands:
+				self.rgbFits[B]=inputDict[B]
+			print self.rgbBands
+			print self.rgbInputDict
+			print self.rgbFits
+
+		if self.cfaBand in inputDict:
+			self.cfa=True
+			self.cfaInputDict={k: inputDict[k] for k in self.cfaBand}
+			dirname=os.path.dirname(inputDict[self.cfaBand])
+			self.cfaFits={k: dirname+'/cfa.'+k+'.fit' for k in self.rgbBands}
+			for B in self.xyzBands:
+				self.cfaFits[B]=dirname+'/cfa.'+B+'.fit'
+			print self.cfaBand
+			print self.cfaInputDict
+			print self.cfaFits
+
+
 
 
 	def setRGBlevels(self):
@@ -81,25 +106,26 @@ class ColorMixer():
 		print "Generating tif:",outfile
 		Li.save(outfile,"TIFF")
 
-	def demosaic(self):
-		cfaFileName=self.RGBdict['P']
-		print "RGBcomposer. Demosaicing:",cfaFileName
+	def cfa2rgb(self):
+		cfaFileName=self.cfaInputDict[self.cfaBand]
+		print "ColorComposer. Demosaicing:",cfaFileName
 		hdulist=pyfits.open(cfaFileName)		
 		cfa=hdulist[0].data/hdulist[0].data.max()
 		print "CFA Shape:",cfa.shape,cfa.max()
 		mosaicStack=demosaic.demosaic(cfa,pattern='rggb',method='bilinear')
 		print "Demosaic shape",mosaicStack.shape
-		bands=['R','G','B']
-		for i,name in enumerate(map(lambda x:'bayer.'+x+'.fit',bands)):
+		bands=self.rgbBands
+		for i,B in enumerate(bands):
+			name=self.cfaFits[B]
 			print "Writing:",name
 			hdulist[0].data=mosaicStack[:,:,i]
-			print "Band:",hdulist[0].data.max(),hdulist[0].data.min()
+			print "Band:",B,hdulist[0].data.max(),hdulist[0].data.min()
 			hdulist.writeto(name,clobber=True)
-
 		return mosaicStack
 
-	def CFAtoXYZ(self):
-		stk=self.demosaic()
+
+	def cfa2xyz(self):
+		stk=self.cfa2rgb()
 		w,h,c=stk.shape
 		pixels=w*h
 		rgb=stk.reshape(pixels,c)
@@ -107,42 +133,19 @@ class ColorMixer():
 		XYZ=np.dot(rgb,self.ForwardMatrix1)
 		XYZ=XYZ.reshape(w,h,c)
 		print XYZ.shape
-		cfaFileName=self.RGBdict['P']
-		print "RGBcomposer. XYZ:",cfaFileName
+		cfaFileName=self.cfaInputDict[self.cfaBand]
+		print "ColorComposer. XYZ:",cfaFileName
 		hdulist=pyfits.open(cfaFileName)
-		bands=['X','Y','Z']
-		for i,name in enumerate(map(lambda x:'bayer.'+x+'.fit',bands)):
-			tifFile=name.replace('.fit','.tif')
+		bands=self.xyzBands
+		for i,B in enumerate(bands):
+			name=self.cfaFits[B]	
 			print "Writing:",name
 			hdulist[0].data=XYZ[:,:,i]
 			hdulist.writeto(name,clobber=True)
-			data=lingray(XYZ[:,:,i],a=0.,b=1.,bits=16).astype(np.uint16)
-			im = Image.fromarray(data,'I;16')
-			Li = im.transpose(Image.FLIP_TOP_BOTTOM)
-			print "Generating tif:",tifFile
-			Li.save(tifFile,"TIFF")
 
-		if True:
-			cmdStr='convert '
-			for band in bands:
-				cmdStr=cmdStr+'bayer.'+band+'.tif'+' '
-			cmdStr=cmdStr+' -set colorspace RGB -combine -set colorspace RGB bayer.XYZ.tiff'
-			print cmdStr
-			res=commands.getoutput(cmdStr)
-			print res
-
-		if True:
-			cmdStr='stiff '
-			for band in ('X','Y','Z'):
-				cmdStr=cmdStr+'bayer.'+band+'.fit'+' '
-			cmdStr=cmdStr+'-BITS_PER_CHANNEL 16 -GAMMA '+str(self.gamma)+' -OUTFILE_NAME stiff.bayer.XYZ.tif'
-			print cmdStr
-			res=commands.getoutput(cmdStr)
-		print res
-
-	def RGBtoXYZ(self):
-		for k,B in enumerate(['R','G','B']):
-			hdulist=pyfits.open(self.RGBdict[B])
+	def rgb2xyz(self):
+		for k,B in enumerate(self.rgbBands):
+			hdulist=pyfits.open(self.rgbInputDict[B])
 			b=np.array(hdulist[0].data)
 			w,h=b.shape
 			pixels=w*h
@@ -158,17 +161,12 @@ class ColorMixer():
 		print "XYZ shape:",XYZ.shape
 		XYZ=XYZ.reshape(w,h,3)
 		print "XYZ shape:",XYZ.shape
-		bands=['X','Y','Z']
-		for i,name in enumerate(map(lambda x:'stacked.'+x+'.fit',bands)):
-			tifFile=name.replace('.fit','.tif')
+		bands=self.xyzBands
+		for i,B in enumerate(bands):
+			name=self.rgbFits[B]
 			print "Writing:",name
 			hdulist[0].data=XYZ[:,:,i]
 			hdulist.writeto(name,clobber=True)
-			data=lingray(XYZ[:,:,i],a=0.,b=1.,bits=16).astype(np.uint16)
-			im = Image.fromarray(data,'I;16')
-			Li = im.transpose(Image.FLIP_TOP_BOTTOM)
-			print "Generating tif:",tifFile
-			Li.save(tifFile,"TIFF")
 
 
 
@@ -232,31 +230,33 @@ class ColorMixer():
 		res=commands.getoutput(cmdStr)
 		print res
 
-	def stiffRGB(self):
+
+
+
+	def stiff(self,origen,channels,output,bits=16):
+		if len(channels)==1:
+			print "Stiff: Only one channel. Doing Luminance.",
+		elif len(channels)==3:
+			print "Stiff: 3 channels.",
+		else:
+			print "Wrong number of channels. Channels dict:"
+			print channels
+			return
+		print "Origen:",origen
+		if origen=='CFA':
+			channelFits=self.cfaFits
+		elif origen=='RGB':
+			channelFits=self.rgbFits
+		else:
+			print "Stiff: Not origen set"
 		cmdStr='stiff '
-		for band in ('R','G','B'):
-			cmdStr=cmdStr+self.RGBdict[band]+' '
-		cmdStr=cmdStr+'-BITS_PER_CHANNEL 16 -GAMMA '+str(self.gamma)+' -OUTFILE_NAME stiff.RGB.tif'
+		for band in channels:
+			cmdStr=cmdStr+channelFits[band]+' '
+		cmdStr=cmdStr+'-BITS_PER_CHANNEL '+str(bits)+' -GAMMA '+str(self.gamma)+' -OUTFILE_NAME '+output
 		print cmdStr
 		res=commands.getoutput(cmdStr)
 		print res
 
-	def stiffXYZ(self):
-		cmdStr='stiff '
-		for band in ('X','Y','Z'):
-			cmdStr=cmdStr+'stacked.'+band+'.fit'+' '
-		cmdStr=cmdStr+'-BITS_PER_CHANNEL 16 -GAMMA '+str(self.gamma)+' -OUTFILE_NAME stiff.XYZ.tif'
-		print cmdStr
-		res=commands.getoutput(cmdStr)
-		print res
-
-	def stiffP(self):
-		cmdStr='stiff '
-		cmdStr=cmdStr+self.RGBdict['P']+' -BITS_PER_CHANNEL 16 -GAMMA '+str(self.gamma)
-		cmdStr=cmdStr+' -OUTFILE_NAME stiff.P.tif'
-		print cmdStr
-		res=commands.getoutput(cmdStr)
-		print res
 
 def clip(array,nsigmas=6):
 	mean=array.mean()
@@ -299,12 +299,18 @@ if __name__ == '__main__':
 	'''
 
 	'''
-	RGBfiles={'B': './OUTPUT/result/staked.B.fit', 'G': './OUTPUT/result/staked.G.fit', 'R': './OUTPUT/result/staked.R.fit','P': './OUTPUT/result/staked.P.fit'}
-	l=ColorMixer(RGBfiles,gamma=2.2)
-	l.CFAtoXYZ()
-	l.RGBtoXYZ()
-	l.stiffRGB()
-	l.stiffXYZ()
+	fits={'B': './OUTPUT/result/staked.B.fit', 'G': './OUTPUT/result/staked.G.fit', 'R': './OUTPUT/result/staked.R.fit','P': './OUTPUT/result/staked.P.fit'}
+	l=ColorMixer(fits,gamma=2.4)
+	l.cfa2xyz()
+	l.rgb2xyz()
+	l.stiff('CFA',l.rgbBands,'stiff.cfa.RGB.tif')
+	l.stiff('RGB',l.rgbBands,'stiff.rgb.RGB.tif')
+	l.stiff('CFA',l.xyzBands,'stiff.cfa.XYZ.tif')
+	l.stiff('RGB',l.xyzBands,'stiff.rgb.XYZ.tif')
+	l.stiff('CFA',('Y'),'stiff.cfa.L.tif')
+	l.stiff('RGB',('Y'),'stiff.rgb.L.tif')
+
+
 #	RGBfiles={'P': './OUTPUT/result/output.P.fit'}
 #	l=RGBcomposer(RGBfiles,gamma=2.2)
 #	l.CFAtoXYZ()

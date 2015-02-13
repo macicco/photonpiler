@@ -126,7 +126,7 @@ class raw2fits():
 			if not os.path.exists(outfile):
 				print ".-.-.-."
 				print "rawtran-ting:",outfile
-				strCmd= 'rawtran -c '+iband+' -B -32 -o '+outfile+ " " + raw
+				strCmd= 'rawtran -X "-t 0" -c '+iband+' -B -32 -o '+outfile+ " " + raw
 				print strCmd
 				res=commands.getoutput(strCmd)
 				print res
