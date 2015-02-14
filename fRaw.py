@@ -55,21 +55,51 @@ class raw2fits():
 
 		raws=frames['darks']
 		outdir=self.DIRS[band]['darksdir']
-		darkFits=self.rawtran(raws,band,outdir=outdir,dark=False,flat=False,rotate=False)
-		self.num={'darks':len(darkFits)}
-		self.fitFrames={'darks':darkFits}
-		if self.num['darks']!=0:
-			masterdark=self.MasterDark()
-			masterdark.save(outdir+'/'+cfg['masterdark']+'.'+band+'.fit')
+		masterdark_filename=outdir+'/'+cfg['masterdark']+'.'+band+'.fit'
+		self.num={'darks':0,'flats':0}
+		self.fitFrames={}
+
+		readyDark=cfg['rawsdir']+'/'+cfg['darksdir']+'/'+cfg['masterdark']+'.'+band+'.fit'
+		if  os.path.exists(readyDark):
+			print "Dark master fits present. Coping:",readyDark
+			strCmd= 'cp -v '+readyDark+ " " + masterdark_filename
+			print strCmd
+			res=commands.getoutput(strCmd)
+			print res
+
+		
+		if not os.path.exists(masterdark_filename):
+			darkFits=self.rawtran(raws,band,outdir=outdir,dark=False,flat=False,rotate=False)
+			self.num['darks']=len(darkFits)
+			self.fitFrames['darks']=darkFits
+			if self.num['darks']!=0:
+				masterdark=self.MasterDark()
+				masterdark.save(masterdark_filename)
+		else:
+			print masterdark_filename," already exist. Deleted if you wan to reprocess"
 
 		raws=frames['flats']
 		outdir=self.DIRS[band]['flatsdir']
-		flatFits=self.rawtran(raws,band,outdir=outdir,dark=True,flat=False,rotate=False)
-		self.num['flats']=len(flatFits)
-		self.fitFrames['flats']=flatFits
-		if self.num['flats']!=0:
-			masterflat=self.MasterFlat()
-			masterflat.save(outdir+'/'+cfg['masterflat']+'.'+band+'.fit')
+		masterflat_filename=outdir+'/'+cfg['masterflat']+'.'+band+'.fit'
+
+		readyFlat=cfg['rawsdir']+'/'+cfg['flatsdir']+'/'+cfg['masterflat']+'.'+band+'.fit'
+		if  os.path.exists(readyFlat):
+			print "Dark flat fits present. Coping:",readyFlat
+			strCmd= 'cp -v '+readyFlat+ " " + masterflat_filename
+			print strCmd
+			res=commands.getoutput(strCmd)
+			print res			
+
+
+		if not os.path.exists(masterflat_filename):
+			flatFits=self.rawtran(raws,band,outdir=outdir,dark=True,flat=False,rotate=False)
+			self.num['flats']=len(flatFits)
+			self.fitFrames['flats']=flatFits
+			if self.num['flats']!=0:
+				masterflat=self.MasterFlat()
+				masterflat.save(masterflat_filename)
+		else:
+			print masterflat_filename," already exist. Deleted if you wan to reprocess"
 
 		raws=frames['lights']
 		outdir=self.DIRS[band]['lightsdir']
@@ -170,6 +200,8 @@ class raw2fits():
 						light=fitsMaths.fitMaths(outfile)
 						light=light.flat(flatfile)
 						light.save(outfile)
+					else:
+						print flatfile," not found"
 			else:
 				print "Already exist:",outfile
 			l.append(outfile)
