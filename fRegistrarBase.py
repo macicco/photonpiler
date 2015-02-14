@@ -33,8 +33,9 @@ class registrarBase():
 	def searchDirs(self):
 		cfg=self.cfg
 		lightFits={}
-		for B in ['Ri1','Gi','Gi2','Bi','P']:
+		for B in ['Ri','Gi1','Gi2','Bi','P']:
 			path=cfg['fitsdir']+'/'+B+'/'+cfg['lightsdir']
+			print B,path
 			lightFits[B]=self.searchFitFiles(path)
 		return lightFits
 

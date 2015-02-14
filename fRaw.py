@@ -24,8 +24,23 @@ class raw2fits():
 		flatRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['flatsdir'])
 		self.rawFrames={'lights':lightRaws,'darks':darkRaws,'flats':flatRaws}
 
-		self.bands=cfg['bands'].split(',')
+		#self.bands=cfg['bands'].split(',')
 
+		bands=[]
+
+		if int(cfg['do_rgb_process'])==1:
+			bands=['Ri','Gi1','Gi2','Bi']
+
+
+		if int(cfg['do_cfa_process'])==1:
+			if len(bands)==0:
+				bands=['P']
+			else:
+				bands.append('P')
+
+
+		self.bands=bands
+		print self.bands
 		self.createOutputDirs()
 
 		print "BANDS:",self.bands

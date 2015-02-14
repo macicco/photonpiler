@@ -176,7 +176,8 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			fitsList.append(shiftedlight)
 		if not os.path.exists(self.cfg['resultdir']):
 			os.makedirs(self.cfg['resultdir'])
-		outfile=self.cfg['resultdir']+"/staked."+band+".fit"
+
+		outfile=self.cfg['resultdir']+"/stacked."+band+".fit"
 		Master=fitsMaths.combineFits(fitsList,combine=combine)
 		Master.save(outfile)
 		return outfile
@@ -185,29 +186,55 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		return np.sqrt((p1[0]-p0[0])**2+(p1[1]-p0[1])**2)
 
 	def doRGB(self,combine='median',baseband='Gi1'):
+		'''
+		Process and stack individualy each band
+		'''
 		bands=['Ri','Gi1','Gi2','Bi']
 		self.BaseBand=baseband
 
 		bands.remove(baseband)
 		print "BASE BAND:",baseband
-
+		print self.fitFrames
 		if len(self.fitFrames['lightsBase'][self.BaseBand])>1:
 			self.rankFrames(self.BaseBand)
 			self.getTriangles()
 			self.match()
 			self.homografy()
 		else:
-			self.fitFrames['lights']=self.fitFrames['lightsBase'][self.BaseBand]
+			self.fitFrames['lights'][self.BaseBand]=self.fitFrames['lightsBase'][self.BaseBand]
+
+		destdir=self.cfg['workdir']+'/'+self.BaseBand
+		if not os.path.exists(destdir):
+			os.makedirs(destdir)
 		filename=self.stack(baseband,combine=combine)
 		outfiles={baseband:filename}
 		print "Other bands:",bands
+		
+		for i,B in enumerate(bands):
+			self.fitFrames['lights'][B]=[]
+
+		for f,light in enumerate(self.fitFrames['lights'][self.BaseBand]):
+  		    for i,B in enumerate(bands):
+			destdir=self.cfg['fitsdir']+'/'+B+'/'+self.cfg['lightsdir']
+			if not os.path.exists(destdir):
+				os.makedirs(destdir)
+			lightRGB=destdir+'/'+os.path.basename(light).replace(self.BaseBand,B)
+			print lightRGB
+			self.fitFrames['lights'][B].append(lightRGB)		
+
+
+
 		for B in bands:
 			print "Band:",B
+			destdir=self.cfg['workdir']+'/'+B
+			if not os.path.exists(destdir):
+				os.makedirs(destdir)
 			filename=self.stack(B,combine=combine)
 			outfiles[B]=filename
+
 		'''combine Gi1 and Gi2 '''
 		Gi=fitsMaths.combineFits((outfiles['Gi1'],outfiles['Gi2']),combine='median')
-		filename=self.cfg['resultdir']+"/output.Gi.fit"
+		filename=self.cfg['resultdir']+"/stacked.Gi.fit"
 		Gi.save(filename)
 		outfiles.pop("Gi1", None)
 		outfiles.pop("Gi2", None)
@@ -215,11 +242,15 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		return outfiles
 
 	def doCFA(self,combine='median'):
+		'''
+		Process and stack band P(raw) and then
+		extrack each band from it
+		'''
 		self.BaseBand='P'
 
 		print "Luminance band:",self.BaseBand
 		print self.fitFrames['lightsBase'][self.BaseBand]
-		self.fitFrames['lights']={}
+		#self.fitFrames['lights']={}
 		if len(self.fitFrames['lightsBase'][self.BaseBand])>1:
 			self.rankFrames(self.BaseBand)
 			self.getTriangles()
@@ -227,8 +258,8 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			self.homografy()
 		else:
 			print "Single frame"
-			self.fitFrames['lights'][self.BaseBand]=self.fitFrames['lightsBase'][self.BaseBand]
-		print self.fitFrames['lights']
+			#self.fitFrames['lights'][self.BaseBand]=self.fitFrames['lightsBase'][self.BaseBand]
+
 		destdir=self.cfg['workdir']+'/'+self.BaseBand
 		if not os.path.exists(destdir):
 			os.makedirs(destdir)
@@ -274,7 +305,11 @@ if __name__ == '__main__':
 
 	'''
 	co=registrarTriangle()
-	Lfiles=co.doCFA(combine='median')
+	if int(co.cfg['do_cfa_process'])==1:
+		Lfiles=co.doCFA(combine='median')
+
+	if int(co.cfg['do_rgb_process'])==1:
+		Lfiles=co.doRGB(combine='median')	
 
 
 

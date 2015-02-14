@@ -299,20 +299,27 @@ if __name__ == '__main__':
 	'''
 
 	'''
-	fits={'B': './OUTPUT/result/staked.B.fit', 'G': './OUTPUT/result/staked.G.fit', 'R': './OUTPUT/result/staked.R.fit','P': './OUTPUT/result/staked.P.fit'}
-	l=ColorMixer(fits,gamma=2.4)
-	l.cfa2xyz()
-	l.rgb2xyz()
-	l.stiff('CFA',l.rgbBands,'stiff.cfa.RGB.tif')
-	l.stiff('RGB',l.rgbBands,'stiff.rgb.RGB.tif')
-	l.stiff('CFA',l.xyzBands,'stiff.cfa.XYZ.tif')
-	l.stiff('RGB',l.xyzBands,'stiff.rgb.XYZ.tif')
-	l.stiff('CFA',('Y'),'stiff.cfa.L.tif')
-	l.stiff('RGB',('Y'),'stiff.rgb.L.tif')
+	config=fConfig.fConfig()
+	cfg=config.getSection('COLORMIXER')
+	if int(cfg['do_cfa_process'])==1:
+		fits={'B': './OUTPUT/result/stacked.B.fit', 'G': './OUTPUT/result/stacked.G.fit', 'R': './OUTPUT/result/stacked.R.fit','P': './OUTPUT/result/stacked.P.fit'}
+		l=ColorMixer(fits,gamma=2.4)
+		l.cfa2xyz()
+		l.rgb2xyz()
+		l.stiff('CFA',l.rgbBands,'cfa.cfa.RGB.tif')
+		l.stiff('RGB',l.rgbBands,'cfa.rgb.RGB.tif')
+		l.stiff('CFA',l.xyzBands,'cfa.cfa.XYZ.tif')
+		l.stiff('RGB',l.xyzBands,'cfa.rgb.XYZ.tif')
+		l.stiff('CFA',('Y'),'cfa.cfa.L.tif')
+		l.stiff('RGB',('Y'),'cfa.rgb.L.tif')
 
 
-#	RGBfiles={'P': './OUTPUT/result/output.P.fit'}
-#	l=RGBcomposer(RGBfiles,gamma=2.2)
-#	l.CFAtoXYZ()
-#	RGBcomposer(RGBfiles,gamma=1)
+	if int(cfg['do_rgb_process'])==1:
+		fits={'B': './OUTPUT/result/stacked.Bi.fit', 'G': './OUTPUT/result/stacked.Gi.fit', 'R': './OUTPUT/result/stacked.Ri.fit'}
+		l=ColorMixer(fits,gamma=2.4)
+		l.rgb2xyz()
+		l.stiff('RGB',l.rgbBands,'rgb.rgb.RGB.tif')
+		l.stiff('RGB',l.xyzBands,'rgb.rgb.XYZ.tif')
+		l.stiff('RGB',('Y'),'rbg.rgb.L.tif')
+
 
