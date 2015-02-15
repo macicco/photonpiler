@@ -113,6 +113,12 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		self.matchedTriangles= matchedTriangles
 		return matchedTriangles
 
+	def matchThread(self):
+		'''
+		TO BE DONE
+		'''
+		pass
+
 	def homografy(self):
 		matchedTriangles=self.matchedTriangles
 		homo={}
@@ -190,6 +196,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		Process and stack individualy each band
 		'''
 		bands=['Ri','Gi1','Gi2','Bi']
+		rgbBands={'Ri':'R','Gi':'G','Bi':'B','Gi1':'Gi1','Gi2':'Gi2'}
 		self.BaseBand=baseband
 
 		bands.remove(baseband)
@@ -230,7 +237,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			if not os.path.exists(destdir):
 				os.makedirs(destdir)
 			filename=self.stack(B,combine=combine)
-			outfiles[B]=filename
+			outfiles[rgbBands[B]]=filename
 
 		'''combine Gi1 and Gi2 '''
 		Gi=fitsMaths.combineFits((outfiles['Gi1'],outfiles['Gi2']),combine='median')
@@ -238,7 +245,7 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 		Gi.save(filename)
 		outfiles.pop("Gi1", None)
 		outfiles.pop("Gi2", None)
-		outfiles['Gi']=filename
+		outfiles[rgbBands['Gi']]=filename
 		return outfiles
 
 	def doCFA(self,combine='median'):
@@ -306,10 +313,10 @@ if __name__ == '__main__':
 	'''
 	co=registrarTriangle()
 	if int(co.cfg['do_cfa_process'])==1:
-		Lfiles=co.doCFA(combine='median')
+		co.doCFA(combine='median')
 
 	if int(co.cfg['do_rgb_process'])==1:
-		Lfiles=co.doRGB(combine='median')	
+		co.doRGB(combine='median')	
 
 
 

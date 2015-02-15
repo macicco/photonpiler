@@ -303,7 +303,7 @@ if __name__ == '__main__':
 	cfg=config.getSection('COLORMIXER')
 	if int(cfg['do_cfa_process'])==1:
 		fits={'B': './OUTPUT/result/stacked.B.fit', 'G': './OUTPUT/result/stacked.G.fit', 'R': './OUTPUT/result/stacked.R.fit','P': './OUTPUT/result/stacked.P.fit'}
-		l=ColorMixer(fits,gamma=2.4)
+		l=ColorMixer(fits,gamma=1)
 		l.cfa2xyz()
 		l.rgb2xyz()
 		l.stiff('CFA',l.rgbBands,'cfa.cfa.RGB.tif')

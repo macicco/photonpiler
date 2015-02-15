@@ -18,7 +18,13 @@ class raw2fits():
 		config=fConfig.fConfig()
 		cfg=config.getSection('RAW')
 		self.cfg=cfg
-		self.BandMap=config.BandMap
+		if int(cfg['600d_bandmap'])==1:
+			#Canon 600D
+			self.BandMap={'Ri':'Gi2','Gi1':'Ri','Gi2':'Bi','Bi':'Gi1','P':'P'}
+		else:
+			#PLAIN
+			self.BandMap={'Ri':'Ri','Gi1':'Gi1','Gi2':'Gi2','Bi':'Bi','P':'P'}
+
 		lightRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['lightsdir'])
 		darkRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['darksdir'])
 		flatRaws=self.searchRawFiles(cfg['rawsdir']+'/'+cfg['flatsdir'])
@@ -45,20 +51,22 @@ class raw2fits():
 
 		print "BANDS:",self.bands
 		for i,B in enumerate(self.bands):
-			self.doBand(i)
+			self.doBand(B)
 
 
-	def doBand(self,iband):
+	def doBand(self,band):
+		print "Do band:",band
 		cfg=self.cfg
 		frames=self.rawFrames
-		band=self.bands[iband]
+		iband=self.BandMap[band]
 
 		raws=frames['darks']
 		outdir=self.DIRS[band]['darksdir']
 		masterdark_filename=outdir+'/'+cfg['masterdark']+'.'+band+'.fit'
 		self.num={'darks':0,'flats':0}
 		self.fitFrames={}
-
+		
+		'''Check if premaded dark its present'''
 		readyDark=cfg['rawsdir']+'/'+cfg['darksdir']+'/'+cfg['masterdark']+'.'+band+'.fit'
 		if  os.path.exists(readyDark):
 			print "Dark master fits present. Coping:",readyDark
@@ -66,6 +74,7 @@ class raw2fits():
 			print strCmd
 			res=commands.getoutput(strCmd)
 			print res
+
 
 		
 		if not os.path.exists(masterdark_filename):
@@ -82,6 +91,7 @@ class raw2fits():
 		outdir=self.DIRS[band]['flatsdir']
 		masterflat_filename=outdir+'/'+cfg['masterflat']+'.'+band+'.fit'
 
+		'''Check if premaded flat its present'''
 		readyFlat=cfg['rawsdir']+'/'+cfg['flatsdir']+'/'+cfg['masterflat']+'.'+band+'.fit'
 		if  os.path.exists(readyFlat):
 			print "Dark flat fits present. Coping:",readyFlat

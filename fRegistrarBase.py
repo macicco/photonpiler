@@ -18,7 +18,6 @@ class registrarBase():
 		config=fConfig.fConfig()
 		cfg=config.getSection('REGISTRAR')
 		self.cfg=cfg
-		self.BandMap=config.BandMap
 		self.scriptpath, self.scriptname = os.path.split(os.path.abspath(__file__))
 		print "Script path:",self.scriptpath
 		lightFits=self.searchDirs()

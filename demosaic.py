@@ -33,10 +33,17 @@ def CONV(i,w):
     return convolve(i, weights=w, mode='reflect')
 
 def demosaic_bilinear(cfa,pattern='rggb',clip=(0.,1.)):
+    h,w=cfa.shape
+    if h % 2 == 0:
+	cfa=np.vstack((np.zeros(w),cfa))
+	print "400D hack"
+    h,w=cfa.shape
+    print "CFA shape:",h,w
     # pull color channels
     ch = dict((c,np.zeros_like(cfa)) for c in 'rgb')
     for c,(y,x) in zip(pattern,[(0,0),(0,1),(1,0),(1, 1)]):
         ch[c][y::2,x::2] = cfa[y::2,x::2]
+
     (r,g,b) = (ch[c] for c in 'rgb')
     # interpolate per-channel
     (_,a,A) = (0., 0.25, 0.5)
@@ -50,9 +57,11 @@ def demosaic_bilinear(cfa,pattern='rggb',clip=(0.,1.)):
               [a, _, a],
               [_, a, _]]
     # convolve with channel-appropriate kernels
-    r = np.where(r > 0, r, CONV(r, sintpl))
-    g = np.where(g > 0, g, CONV(g, dintpl))
-    b = np.where(b > 0, b, CONV(b, sintpl))
+    if True:	
+	    r = np.where(r > 0, r, CONV(r, sintpl))
+	    g = np.where(g > 0, g, CONV(g, dintpl))
+	    b = np.where(b > 0, b, CONV(b, sintpl))
+
     return np.dstack((r,g,b)).clip(clip[0],clip[1])
 
 def demosaic_gradient(cfa,pattern='rggb',clip=(0.,1.)):
