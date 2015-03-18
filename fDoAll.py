@@ -26,22 +26,23 @@ if __name__ == '__main__':
 
 	config=fConfig.fConfig()
 	cfg=config.getSection('COLORMIXER')
-	
+	gamma=float(cfg['gamma'])
+	bits=float(cfg['bits'])
 	if int(cfg['do_cfa_process'])==1:
-		l=fColorMixer.ColorMixer(cfafits,gamma=2.4)
+		l=fColorMixer.ColorMixer(cfafits,gamma=gamma)
 		l.cfa2xyz()
 		l.rgb2xyz()
-		l.stiff('CFA',l.rgbBands,'cfa.cfa.RGB.tif')
-		l.stiff('RGB',l.rgbBands,'cfa.rgb.RGB.tif')
-		l.stiff('CFA',l.xyzBands,'cfa.cfa.XYZ.tif')
-		l.stiff('RGB',l.xyzBands,'cfa.rgb.XYZ.tif')
-		l.stiff('CFA',('Y'),'cfa.cfa.L.tif')
-		l.stiff('RGB',('Y'),'cfa.rgb.L.tif')
+		l.stiff('CFA',l.rgbBands,'cfa.cfa.RGB.tif',bits=bits)
+		l.stiff('RGB',l.rgbBands,'cfa.rgb.RGB.tif',bits=bits)
+		l.stiff('CFA',l.xyzBands,'cfa.cfa.XYZ.tif',bits=bits)
+		l.stiff('RGB',l.xyzBands,'cfa.rgb.XYZ.tif',bits=bits)
+		l.stiff('CFA',('Y'),'cfa.cfa.L.tif',bits=bits)
+		l.stiff('RGB',('Y'),'cfa.rgb.L.tif',bits=bits)
 
 
 	if int(cfg['do_rgb_process'])==1:
-		l=fColorMixer.ColorMixer(rgbfits,gamma=2.4)
+		l=fColorMixer.ColorMixer(rgbfits,gamma=gamma)
 		l.rgb2xyz()
-		l.stiff('RGB',l.rgbBands,'rgb.rgb.RGB.tif')
-		l.stiff('RGB',l.xyzBands,'rgb.rgb.XYZ.tif')
-		l.stiff('RGB',('Y'),'rgb.rgb.L.tif')
+		l.stiff('RGB',l.rgbBands,'rgb.rgb.RGB.tif',bits=bits)
+		l.stiff('RGB',l.xyzBands,'rgb.rgb.XYZ.tif',bits=bits)
+		l.stiff('RGB',('Y'),'rgb.rgb.L.tif',bits=bits)

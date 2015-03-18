@@ -171,7 +171,7 @@ class raw2fits():
 			header['COMMENT']="ORIGINAL EXIF DATA END:"
 
 
-	def rawtran(self,raws,band,outdir,dark=True,flat=True,rotate=False):
+	def rawtran(self,raws,band,outdir,bias=True,dark=True,flat=True,rotate=False):
 		cfg=self.cfg
 		iband=self.BandMap[band]
 		l=[]
@@ -203,7 +203,16 @@ class raw2fits():
 					if os.path.exists(darkfile):
 						light=fitsMaths.fitMaths(outfile)
 						light=light.dark(darkfile)
-						light.save(outfile)				
+						light.save(outfile)	
+				if bias:
+					superbias=cfg['superbias']
+					print superbias
+					if os.path.exists(superbias):
+						print "Superbias"
+						light=fitsMaths.fitMaths(outfile)
+						superbias=fitsMaths.fitMaths(superbias)
+						light=light-superbias
+						light.save(outfile)			
 				if flat:
 					flatfile=self.DIRS[band]['flatsdir']+'/'+cfg['masterflat']+'.'+band+'.fit'
 					if os.path.exists(flatfile):
