@@ -252,7 +252,7 @@ class ColorMixer():
 		cmdStr='stiff '
 		for band in channels:
 			cmdStr=cmdStr+channelFits[band]+' '
-		cmdStr=cmdStr+'-BITS_PER_CHANNEL '+str(bits)+' -GAMMA '+str(self.gamma)+' -OUTFILE_NAME '+output
+		cmdStr=cmdStr+'-BITS_PER_CHANNEL '+str(bits)+' -GAMMA '+str(self.gamma)+' -OUTFILE_NAME '+output+" -c default.stiff"
 		print cmdStr
 		res=commands.getoutput(cmdStr)
 		print res

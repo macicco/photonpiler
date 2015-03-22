@@ -265,7 +265,8 @@ class registrarTriangle(fRegistrarBase.registrarBase):
 			self.homografy()
 		else:
 			print "Single frame"
-			#self.fitFrames['lights'][self.BaseBand]=self.fitFrames['lightsBase'][self.BaseBand]
+			self.fitFrames['lights']={}
+			self.fitFrames['lights'][self.BaseBand]=self.fitFrames['lightsBase'][self.BaseBand]
 
 		destdir=self.cfg['workdir']+'/'+self.BaseBand
 		if not os.path.exists(destdir):
