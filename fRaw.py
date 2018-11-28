@@ -156,8 +156,10 @@ class raw2fits():
 		print "extracting exif information from:",raw
 		strCmd= 'exiftool -j '+ raw
 		res=commands.getoutput(strCmd)
+		#print res
 		exifjson=res.strip().replace('\n','')[1:-1]
 		exiftags=simplejson.loads(exifjson)
+		print exiftags
 		print "updating FIT HEADER",fit
 		with 	pyfits.open(fit,mode='update') as hdulist:
 			header=hdulist[0].header
@@ -165,13 +167,14 @@ class raw2fits():
 				header['CCD-TEMP']=float(exiftags['CameraTemperature'].replace(' ','').replace('C',''))
 			except:
 				print "Not CCD temp tag"
+			'''
 			header['COMMENT']="ORIGINAL EXIF DATA BEGIN:"
 			for exifkey in exiftags.keys():
 				header['COMMENT']="EXIF:: "+exifkey+":"+str(exiftags[exifkey])
 			header['COMMENT']="ORIGINAL EXIF DATA END:"
+			'''
 
-
-	def rawtran(self,raws,band,outdir,bias=True,dark=True,flat=True,rotate=False):
+	def rawtran(self,raws,band,outdir,bias=False,dark=True,flat=True,rotate=False):
 		cfg=self.cfg
 		iband=self.BandMap[band]
 		l=[]
@@ -208,7 +211,7 @@ class raw2fits():
 					superbias=cfg['superbias']
 					print superbias
 					if os.path.exists(superbias):
-						print "Superbias"
+						print "Superbias found"
 						light=fitsMaths.fitMaths(outfile)
 						superbias=fitsMaths.fitMaths(superbias)
 						light=light-superbias
